@@ -8183,12 +8183,37 @@ function viewOrderModal(orderId) {
   `;
 
   document.body.appendChild(modal);
-  modal.style.display = "flex";
   
-  // Forzar actualización de eventos para el modal
-  setTimeout(() => {
-    render();
-  }, 100);
+  // Añadir event listener específico para este modal
+  modal.addEventListener('click', function(event) {
+    const trigger = event.target.closest("[data-action]");
+    if (trigger) {
+      const action = trigger.dataset.action;
+      
+      // Manejar acciones específicas del modal
+      if (action === "close-modal") {
+        modal.remove();
+        return;
+      }
+      
+      // Para otras acciones, remover modal primero
+      if (action !== "view-order") {
+        modal.remove();
+      }
+      
+      // Ejecutar la acción correspondiente
+      handleClick(event);
+    }
+  });
+  
+  // Manejar cambios en inputs dentro del modal
+  modal.addEventListener('input', function(event) {
+    if (event.target.classList.contains("input-entregado")) {
+      handleDeliveredQuantityChange(event.target);
+    }
+  });
+  
+  modal.style.display = "flex";
 }
 
 function handleDeliveredQuantityChange(input) {
