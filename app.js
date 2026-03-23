@@ -3788,6 +3788,45 @@ window.clearAllActiveOrders = function() {
   }
 };
 
+// Función para eliminar pedidos activos (no mover a historial)
+window.deleteActiveOrders = function() {
+  console.log("Deleting active orders (not moving to history)...");
+  
+  if (!confirm("¿Estás seguro de eliminar los pedidos activos? Se eliminarán completamente del sistema.")) {
+    return;
+  }
+  
+  let deletedCount = 0;
+  
+  // Eliminar completamente los pedidos activos (no mover a historial)
+  for (let i = state.kitchenOrders.length - 1; i >= 0; i--) {
+    const order = state.kitchenOrders[i];
+    
+    if (order.status !== "completada") {
+      console.log("Deleting active order:", order.number);
+      
+      // Eliminar completamente del array
+      state.kitchenOrders.splice(i, 1);
+      deletedCount++;
+    }
+  }
+  
+  if (deletedCount > 0) {
+    reconcileNotificationsWithInventory();
+    saveState();
+    
+    alert(`Se eliminaron ${deletedCount} pedidos activos correctamente`);
+    
+    // Forzar recarga completa
+    setTimeout(() => {
+      location.reload();
+    }, 500);
+    
+  } else {
+    alert("No hay pedidos activos para eliminar");
+  }
+};
+
 // Función para forzar eliminación del pedido problemático
 window.forceDeleteSpecificOrder = function(orderId, orderNumber) {
   console.log("Force deleting specific order:", orderId, orderNumber);
@@ -3927,14 +3966,23 @@ function renderOrdersModule() {
             class="tab-btn" 
             style="background: var(--secondary); color: white;"
             onclick="clearAllActiveOrders()"
-            title="Eliminar TODOS los pedidos activos"
+            title="Mover todos los pedidos activos al historial"
           >
-            🗑️ Eliminar Todo
+            🗑️ Mover a Historial
+          </button>
+          <!-- Botón para eliminar pedidos activos -->
+          <button 
+            class="tab-btn" 
+            style="background: #dc3545; color: white;"
+            onclick="deleteActiveOrders()"
+            title="Eliminar permanentemente todos los pedidos activos"
+          >
+            ❌ Eliminar Activos
           </button>
           <!-- Botón de eliminación forzada -->
           <button 
             class="tab-btn" 
-            style="background: #dc3545; color: white;"
+            style="background: #6c757d; color: white;"
             onclick="forceDeleteSpecificOrder('kitchen-order-ec938096-ca63-4324-8695-de044acd26d5', 'REQ-2603231011-434')"
             title="Forzar eliminación del pedido problemático"
           >
