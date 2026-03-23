@@ -3576,25 +3576,50 @@ window.emergencyDeleteOrder = function(orderId, orderNumber) {
   
   if (confirm(`¿Estás seguro de eliminar el pedido ${orderNumber}? Se moverá al historial.`)) {
     try {
-      // Buscar el pedido directamente
-      const order = state.kitchenOrders.find(o => o.id === orderId);
+      console.log("Confirmed deletion, searching for order...");
       
-      if (!order) {
+      // Buscar el pedido directamente
+      let orderIndex = -1;
+      let order = null;
+      
+      for (let i = 0; i < state.kitchenOrders.length; i++) {
+        if (state.kitchenOrders[i].id === orderId) {
+          orderIndex = i;
+          order = state.kitchenOrders[i];
+          break;
+        }
+      }
+      
+      if (!order || orderIndex === -1) {
+        console.error("Order not found:", orderId);
         alert('No se encontró el pedido');
         return;
       }
+      
+      console.log("Order found:", order);
       
       // Cambiar estado a completado
       order.status = "completada";
       order.completedAt = new Date().toISOString();
       order.completedBy = getAuthenticatedCollaborator()?.name || "Sistema";
       
+      console.log("Order status changed to completed");
+      
+      // Actualizar el pedido en el array
+      state.kitchenOrders[orderIndex] = order;
+      
       // Guardar y renderizar
       reconcileNotificationsWithInventory();
       saveState();
       
+      console.log("State saved, rendering...");
+      
       alert(`Pedido ${orderNumber} movido al historial correctamente`);
-      render();
+      
+      // Forzar renderizado completo
+      setTimeout(() => {
+        render();
+      }, 100);
       
     } catch (error) {
       console.error('Error deleting order:', error);
