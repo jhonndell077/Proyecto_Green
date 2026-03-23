@@ -1,0 +1,62 @@
+{
+  "hosting": [
+    {
+      "target": "proyecto-green",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        ".firebaserc",
+        ".firebaseignore",
+        "firebase-debug.log",
+        "edge-*.txt",
+        "live-dom.txt",
+        "live-check*.png",
+        "post-fix-live.png",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "/index.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
+            }
+          ]
+        },
+        {
+          "source": "/app.js",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
+            }
+          ]
+        },
+        {
+          "source": "/styles.css",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "firestore": [
+    {
+      "database": "proyecto-green",
+      "rules": "firestore.proyecto-green.rules",
+      "indexes": "firestore.proyecto-green.indexes.json"
+    }
+  ]
+}

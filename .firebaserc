@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "luro-control"
+  },
+  "targets": {
+    "luro-control": {
+      "hosting": {
+        "proyecto-green": [
+          "proyecto-green-luro-control"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
