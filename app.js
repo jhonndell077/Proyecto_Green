@@ -1270,6 +1270,25 @@ function handleClick(event) {
     case "forward-kitchen-order":
       forwardKitchenOrderToDispatch(String(trigger.dataset.id || ""));
       return;
+    case "view-order":
+      viewOrderModal(String(trigger.dataset.id || ""));
+      return;
+    case "send-to-branch":
+      sendOrderToBranch(String(trigger.dataset.id || ""));
+      return;
+    case "mark-unavailable":
+      markProductAsUnavailable(
+        String(trigger.dataset.orderId || ""),
+        String(trigger.dataset.productId || ""),
+        String(trigger.dataset.productName || "")
+      );
+      return;
+    case "close-modal":
+      const modal = trigger.closest(".modal-overlay");
+      if (modal) {
+        modal.remove();
+      }
+      return;
     case "dispatch-kitchen-order":
       dispatchKitchenOrder(String(trigger.dataset.id || ""));
       return;
@@ -1610,6 +1629,12 @@ function handleInput(event) {
     !(trigger instanceof HTMLInputElement) &&
     !(trigger instanceof HTMLTextAreaElement)
   ) {
+    return;
+  }
+
+  // Manejar cambios en inputs de cantidad entregada
+  if (trigger.classList.contains("input-entregado")) {
+    handleDeliveredQuantityChange(trigger);
     return;
   }
 
@@ -5310,6 +5335,7 @@ function renderKitchenPanelSection() {
         ${renderFlash("notifications")}
         ${renderNotificationsList(true)}
       </section>
+      ${renderBranchNotificationsSection()}
     </div>
   `;
 }
@@ -5346,6 +5372,16 @@ function isKitchenOrderFullyDispatched(order) {
 }
 
 function getKitchenOrderStatusMeta(order) {
+  if (order.sentToBranch) {
+    return {
+      label: "Enviado a sucursal",
+      className: "status-active",
+      canForward: false,
+      canSendToKitchen: false,
+      helper: "Este pedido ya fue enviado a la sucursal.",
+    };
+  }
+
   if (isKitchenOrderFullyDispatched(order)) {
     return {
       label: "Despachado",
@@ -5400,6 +5436,7 @@ function renderKitchenOrderCard(order) {
                 <th>Solicitado</th>
                 <th>Entregado</th>
                 <th>Pendiente</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -5410,8 +5447,9 @@ function renderKitchenOrderCard(order) {
                       <td>${escapeHtml(item.productName)}</td>
                       <td>${escapeHtml(item.unit || "unid.")}</td>
                       <td>${formatNumber(item.requested)}</td>
-                      <td>${formatNumber(item.delivered)}</td>
+                      <td><input type="number" value="${formatNumber(item.delivered)}" class="input-entregado" data-order-id="${escapeHtml(order.id)}" data-product-id="${escapeHtml(item.productId)}" min="0"></td>
                       <td>${formatNumber(item.pending)}</td>
+                      <td><button class="btn-x" data-action="mark-unavailable" data-order-id="${escapeHtml(order.id)}" data-product-id="${escapeHtml(item.productId)}" data-product-name="${escapeHtml(item.productName)}">X</button></td>
                     </tr>
                   `,
                 )
@@ -5422,6 +5460,14 @@ function renderKitchenOrderCard(order) {
         <p class="text-soft">${escapeHtml(statusMeta.helper)}</p>
       </div>
       <div class="notification-actions">
+        <button
+          class="btn btn-info btn-small"
+          type="button"
+          data-action="view-order"
+          data-id="${escapeHtml(order.id)}"
+        >
+          Ver pedido
+        </button>
         ${
           statusMeta.canForward
             ? `
@@ -5432,6 +5478,20 @@ function renderKitchenOrderCard(order) {
                 data-id="${escapeHtml(order.id)}"
               >
                 Enviar al encargado
+              </button>
+            `
+            : ""
+        }
+        ${
+          order.forwardedToDispatch && !order.sentToBranch
+            ? `
+              <button
+                class="btn btn-success btn-small"
+                type="button"
+                data-action="send-to-branch"
+                data-id="${escapeHtml(order.id)}"
+              >
+                Enviar a sucursal
               </button>
             `
             : ""
@@ -5760,8 +5820,9 @@ function canManageNotificationTasks() {
 
 function renderNotificationsList(allowTaskActions = false) {
   const notifications = getSortedNotifications();
+  const deliveryIncidents = getDeliveryIncidents();
 
-  if (notifications.length === 0) {
+  if (notifications.length === 0 && deliveryIncidents.length === 0) {
     return renderEmptyState(
       "No hay notificaciones activas todavía",
       "Cuando Cuarto Frío o una tienda queden por debajo del stock ideal, la reposición aparecerá aquí automáticamente.",
@@ -5770,6 +5831,34 @@ function renderNotificationsList(allowTaskActions = false) {
 
   return `
     <div class="notification-list">
+      ${deliveryIncidents
+        .map((incident) => `
+          <article class="notification-card incidente">
+            <div class="notification-head">
+              <strong>⚠️ Incidente en Pedido ${escapeHtml(incident.orderNumber)}</strong>
+              <span class="status-chip status-pendiente">Incidencia</span>
+            </div>
+            <div class="notification-body">
+              <p><strong>Sucursal:</strong> ${escapeHtml(incident.branchName)} / ${escapeHtml(incident.brandName)}</p>
+              <div class="incidente-list">
+                <h4>Detalle del incidente:</h4>
+                <ul>
+                  <li><strong>Producto:</strong> ${escapeHtml(incident.productName)}</li>
+                  <li><strong>Tipo:</strong> ${incident.incidentType === 'cantidad_modificada' ? 'Cantidad modificada' : 'Producto no disponible'}</li>
+                  ${
+                    incident.incidentType === 'cantidad_modificada'
+                      ? `<li><strong>Cambiado de:</strong> ${incident.requestedQuantity} a ${incident.deliveredQuantity}</li>`
+                      : ''
+                  }
+                </ul>
+              </div>
+              <div class="notification-meta">
+                <span class="pill">Fecha: ${escapeHtml(formatDate(incident.timestamp))}</span>
+              </div>
+            </div>
+          </article>
+        `)
+        .join("")}
       ${notifications
         .map((notification) => {
           const alertActive = isNotificationAlertActive(notification);
@@ -7997,6 +8086,318 @@ function buildKitchenOrderPrintMarkup(order) {
       </body>
     </html>
   `;
+}
+
+// Nuevas funciones para el sistema de gestión de pedidos
+function viewOrderModal(orderId) {
+  const order = getKitchenOrderById(orderId);
+  
+  if (!order) {
+    setFlash("kitchen-orders", "error", "No se encontró el pedido.");
+    render();
+    return;
+  }
+
+  const modal = document.createElement("div");
+  modal.className = "modal-overlay";
+  modal.innerHTML = `
+    <div class="modal-window modal-order-sheet">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>Ver Pedido ${escapeHtml(order.number)}</h2>
+          <button class="btn btn-ghost btn-small" data-action="close-modal">Cerrar</button>
+        </div>
+        <div class="modal-body">
+          <div class="sheet-meta">
+            <p><strong>Sucursal:</strong> ${escapeHtml(order.branchName)} / ${escapeHtml(order.brandName)}</p>
+            <p><strong>Fecha:</strong> ${escapeHtml(formatDate(order.date))}</p>
+            <p><strong>Solicitante:</strong> ${escapeHtml(order.requesterName || "Sin solicitante")}</p>
+            <p><strong>Autorizado por:</strong> ${escapeHtml(order.authorizedByName || "Sin autorización")}</p>
+          </div>
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Unidad</th>
+                  <th>Solicitado</th>
+                  <th>Entregado</th>
+                  <th>Pendiente</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${order.items.map(item => `
+                  <tr class="${item.unavailable ? 'producto-no-disponible' : ''}">
+                    <td>${escapeHtml(item.productName)}</td>
+                    <td>${escapeHtml(item.unit || "unid.")}</td>
+                    <td>${formatNumber(item.requested)}</td>
+                    <td>
+                      <input type="number" 
+                             value="${formatNumber(item.delivered)}" 
+                             class="input-entregado" 
+                             data-order-id="${escapeHtml(order.id)}" 
+                             data-product-id="${escapeHtml(item.productId)}" 
+                             min="0"
+                             ${order.sentToBranch ? 'disabled' : ''}>
+                    </td>
+                    <td>${formatNumber(item.pending)}</td>
+                    <td>
+                      <button class="btn-x" 
+                              data-action="mark-unavailable" 
+                              data-order-id="${escapeHtml(order.id)}" 
+                              data-product-id="${escapeHtml(item.productId)}" 
+                              data-product-name="${escapeHtml(item.productName)}"
+                              ${order.sentToBranch ? 'disabled' : ''}>
+                        X
+                      </button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          ${getOrderIncidents(order).length > 0 ? `
+            <div class="incidente-list">
+              <h4>⚠️ Incidencias detectadas:</h4>
+              <ul>
+                ${getOrderIncidents(order).map(incident => `
+                  <li>${escapeHtml(incident)}</li>
+                `).join('')}
+              </ul>
+            </div>
+          ` : ''}
+        </div>
+        <div class="modal-actions">
+          ${order.forwardedToDispatch && !order.sentToBranch ? `
+            <button class="btn btn-success" data-action="send-to-branch" data-id="${escapeHtml(order.id)}">
+              Enviar a sucursal
+            </button>
+          ` : ''}
+          <button class="btn btn-primary" data-action="print-kitchen-order" data-id="${escapeHtml(order.id)}">
+            Imprimir pedido
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  modal.style.display = "flex";
+}
+
+function handleDeliveredQuantityChange(input) {
+  const orderId = input.dataset.orderId;
+  const productId = input.dataset.productId;
+  const newQuantity = normalizeNumber(input.value, 0);
+  
+  const order = getKitchenOrderById(orderId);
+  if (!order || order.sentToBranch) return;
+  
+  const item = order.items.find(i => i.productId === productId);
+  if (!item) return;
+  
+  const oldQuantity = item.delivered;
+  item.delivered = roundStock(Math.max(0, newQuantity));
+  item.pending = roundStock(Math.max(0, item.requested - item.delivered));
+  
+  // Si la cantidad cambió, generar notificación
+  if (oldQuantity !== item.delivered) {
+    generateDeliveryNotification(order, item, 'cantidad_modificada');
+  }
+  
+  saveState();
+  render();
+}
+
+function markProductAsUnavailable(orderId, productId, productName) {
+  const order = getKitchenOrderById(orderId);
+  if (!order || order.sentToBranch) {
+    setFlash("kitchen-orders", "error", "No se puede modificar un pedido ya enviado a sucursal.");
+    return;
+  }
+  
+  const item = order.items.find(i => i.productId === productId);
+  if (!item) return;
+  
+  item.unavailable = !item.unavailable;
+  item.delivered = item.unavailable ? 0 : item.requested;
+  item.pending = item.unavailable ? item.requested : 0;
+  
+  if (item.unavailable) {
+    generateDeliveryNotification(order, item, 'producto_no_disponible');
+    setFlash("kitchen-orders", "warning", `${productName} marcado como no disponible.`);
+  } else {
+    setFlash("kitchen-orders", "success", `${productName} disponible nuevamente.`);
+  }
+  
+  saveState();
+  render();
+}
+
+function generateDeliveryNotification(order, item, incidentType) {
+  const incident = {
+    orderId: order.id,
+    orderNumber: order.number,
+    branchName: order.branchName,
+    brandName: order.brandName,
+    productId: item.productId,
+    productName: item.productName,
+    incidentType: incidentType,
+    requestedQuantity: item.requested,
+    deliveredQuantity: item.delivered,
+    timestamp: new Date().toISOString(),
+    acknowledged: false
+  };
+  
+  // Añadir a las notificaciones internas
+  if (!state.deliveryIncidents) {
+    state.deliveryIncidents = [];
+  }
+  state.deliveryIncidents.push(incident);
+  
+  saveState();
+}
+
+function getOrderIncidents(order) {
+  if (!state.deliveryIncidents) return [];
+  
+  return state.deliveryIncidents
+    .filter(incident => incident.orderId === order.id)
+    .map(incident => {
+      if (incident.incidentType === 'cantidad_modificada') {
+        return `${incident.productName}: Cantidad modificada de ${incident.requestedQuantity} a ${incident.deliveredQuantity}`;
+      } else if (incident.incidentType === 'producto_no_disponible') {
+        return `${incident.productName}: Producto no disponible`;
+      }
+      return '';
+    });
+}
+
+function sendOrderToBranch(orderId) {
+  const order = getKitchenOrderById(orderId);
+  
+  if (!order) {
+    setFlash("kitchen-orders", "error", "No se encontró el pedido.");
+    return;
+  }
+  
+  if (!order.forwardedToDispatch) {
+    setFlash("kitchen-orders", "error", "El pedido debe ser enviado al encargado primero.");
+    return;
+  }
+  
+  // Actualizar estado del pedido
+  order.sentToBranch = true;
+  order.sentToBranchAt = new Date().toISOString();
+  order.sentToBranchById = session.activeCollaboratorId;
+  order.sentToBranchByName = getAuthenticatedCollaborator()?.name || "Sistema";
+  
+  // Descontar del inventario las cantidades entregadas
+  order.items.forEach(item => {
+    if (item.delivered > 0) {
+      const product = getProductById(item.productId);
+      if (product) {
+        product.stock = roundStock(Math.max(0, product.stock - item.delivered));
+      }
+    }
+  });
+  
+  // Generar notificación para líderes de turno
+  generateBranchNotification(order);
+  
+  setFlash("kitchen-orders", "success", `Pedido ${order.number} enviado a sucursal.`);
+  saveState();
+  render();
+}
+
+function generateBranchNotification(order) {
+  const notification = {
+    id: generateId(),
+    type: 'branch_delivery',
+    orderId: order.id,
+    orderNumber: order.number,
+    branchName: order.branchName,
+    brandName: order.brandName,
+    date: order.date,
+    sentAt: order.sentToBranchAt,
+    sentBy: order.sentToBranchByName,
+    acknowledged: false,
+    timestamp: new Date().toISOString()
+  };
+  
+  if (!state.branchNotifications) {
+    state.branchNotifications = [];
+  }
+  state.branchNotifications.push(notification);
+  
+  saveState();
+}
+
+function getDeliveryIncidents() {
+  if (!state.deliveryIncidents) return [];
+  
+  return state.deliveryIncidents
+    .filter(incident => !incident.acknowledged)
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
+function renderBranchNotificationsSection() {
+  const branchNotifications = getBranchNotifications();
+  
+  if (branchNotifications.length === 0) {
+    return `
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>Notificaciones para Líderes de Turno</h2>
+            <p>Aquí aparecen los pedidos enviados a sucursales que requieren seguimiento.</p>
+          </div>
+        </div>
+        ${renderEmptyState(
+          "No hay pedidos enviados a sucursales",
+          "Los pedidos enviados a sucursales aparecerán aquí para seguimiento de líderes de turno."
+        )}
+      </section>
+    `;
+  }
+  
+  return `
+    <section class="panel">
+      <div class="section-heading">
+        <div>
+          <h2>Notificaciones para Líderes de Turno</h2>
+          <p>Pedidos enviados a sucursales que requieren seguimiento.</p>
+        </div>
+      </div>
+      <div class="notification-list">
+        ${branchNotifications.map(notification => `
+          <article class="notification-card">
+            <div class="notification-head">
+              <strong>📦 Pedido ${escapeHtml(notification.orderNumber)} Enviado</strong>
+              <span class="status-chip status-active">Enviado a sucursal</span>
+            </div>
+            <div class="notification-body">
+              <p><strong>Sucursal destino:</strong> ${escapeHtml(notification.branchName)} / ${escapeHtml(notification.brandName)}</p>
+              <div class="notification-meta">
+                <span class="pill">Fecha pedido: ${escapeHtml(formatDate(notification.date))}</span>
+                <span class="pill">Enviado: ${escapeHtml(formatDate(notification.sentAt))}</span>
+                <span class="pill">Enviado por: ${escapeHtml(notification.sentBy)}</span>
+              </div>
+            </div>
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function getBranchNotifications() {
+  if (!state.branchNotifications) return [];
+  
+  return state.branchNotifications
+    .filter(notification => !notification.acknowledged)
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 }
 
 function canEditBranchStoreStock(branchId) {
