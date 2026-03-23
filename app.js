@@ -7530,7 +7530,12 @@ function dispatchKitchenOrder(orderId) {
       currentStoreStock === null
         ? roundStock(Math.max(normalizeNumber(item.pending, item.requested), 0))
         : getBranchProductOrderQuantity(liveBranchNeed, product);
-    const requestedPending = roundStock(Math.max(normalizeNumber(item.pending, item.requested), 0));
+    
+    // Para pedidos "Listo para salida", usar la cantidad entregada configurada
+    const requestedPending = order.forwardedToDispatch 
+      ? roundStock(Math.max(normalizeNumber(item.delivered, 0), 0))
+      : roundStock(Math.max(normalizeNumber(item.pending, item.requested), 0));
+    
     const dispatchQuantity =
       currentStoreStock === null
         ? requestedPending
