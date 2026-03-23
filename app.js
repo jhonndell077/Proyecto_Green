@@ -1065,7 +1065,15 @@ function handleClick(event) {
     return;
   }
 
+  // Prevenir comportamiento por defecto para botones
+  if (trigger.tagName === "BUTTON") {
+    event.preventDefault();
+  }
+
   const action = trigger.dataset.action;
+
+  // Debug para todos los clicks en botones con data-action
+  console.log("Button clicked:", action, trigger.dataset.id);
 
   switch (action) {
     case "logout":
