@@ -3788,6 +3788,55 @@ window.clearAllActiveOrders = function() {
   }
 };
 
+// Función para forzar eliminación del pedido problemático
+window.forceDeleteSpecificOrder = function(orderId, orderNumber) {
+  console.log("Force deleting specific order:", orderId, orderNumber);
+  
+  if (!confirm(`¿Forzar eliminación del pedido ${orderNumber}? Esto moverá todas las ocurrencias al historial.`)) {
+    return;
+  }
+  
+  try {
+    let deletedCount = 0;
+    
+    // Buscar y eliminar TODAS las ocurrencias del pedido
+    for (let i = state.kitchenOrders.length - 1; i >= 0; i--) {
+      const order = state.kitchenOrders[i];
+      
+      if (order.id === orderId && order.status !== "completada") {
+        console.log("Found order to delete:", order.number, "at index:", i);
+        
+        // Marcar como completado
+        order.status = "completada";
+        order.completedAt = new Date().toISOString();
+        order.completedBy = getAuthenticatedCollaborator()?.name || "Sistema";
+        
+        state.kitchenOrders[i] = order;
+        deletedCount++;
+      }
+    }
+    
+    if (deletedCount > 0) {
+      reconcileNotificationsWithInventory();
+      saveState();
+      
+      alert(`Se eliminaron ${deletedCount} ocurrencias del pedido ${orderNumber} correctamente`);
+      
+      // Forzar recarga completa de la página
+      setTimeout(() => {
+        location.reload();
+      }, 500);
+      
+    } else {
+      alert("No se encontraron ocurrencias activas de este pedido");
+    }
+    
+  } catch (error) {
+    console.error("Error force deleting order:", error);
+    alert("Error al forzar eliminación: " + error.message);
+  }
+};
+
 function renderOrdersModule() {
   const orderPanels = getOrderPanelsWithRequests();
   const kitchenOrders = getSortedKitchenOrders();
@@ -3836,6 +3885,15 @@ function renderOrdersModule() {
             title="Eliminar TODOS los pedidos activos"
           >
             🗑️ Eliminar Todo
+          </button>
+          <!-- Botón de eliminación forzada -->
+          <button 
+            class="tab-btn" 
+            style="background: #dc3545; color: white;"
+            onclick="forceDeleteSpecificOrder('kitchen-order-ec938096-ca63-4324-8695-de044acd26d5', 'REQ-2603231011-434')"
+            title="Forzar eliminación del pedido problemático"
+          >
+            ⚡ Forzar Eliminar
           </button>
           <!-- Botones de diagnóstico Firebase -->
           <button 
