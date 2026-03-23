@@ -5468,14 +5468,6 @@ function renderKitchenOrderCard(order) {
         <p class="text-soft">${escapeHtml(statusMeta.helper)}</p>
       </div>
       <div class="notification-actions">
-        <button
-          class="btn btn-info btn-small"
-          type="button"
-          data-action="view-order"
-          data-id="${escapeHtml(order.id)}"
-        >
-          Ver pedido
-        </button>
         ${
           statusMeta.canForward
             ? `
@@ -8164,6 +8156,12 @@ function viewOrderModal(orderId) {
                 `).join('')}
               </tbody>
             </table>
+          </div>
+          <div class="sheet-meta" style="margin-top: 1rem; padding: 1rem; background: var(--bg-soft); border-radius: var(--radius-md);">
+            <p><strong>💡 Nota:</strong> La cantidad en "Entregado" representa lo que realmente se va a despachar del inventario.</p>
+            ${order.forwardedToDispatch ? `
+              <p><strong>📦 Estado:</strong> Listo para salida - Puedes ajustar las cantidades antes de despachar.</p>
+            ` : ''}
           </div>
           ${getOrderIncidents(order).length > 0 ? `
             <div class="incidente-list">
