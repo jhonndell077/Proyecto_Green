@@ -12,6 +12,7 @@ import {
 const APP_STORAGE_KEY = "proyecto-green-state-v1";
 const SESSION_STORAGE_KEY = "proyecto-green-session-v1";
 const PRESENCE_STORAGE_KEY = "proyecto-green-presence-session-v1";
+const HISTORY_STORAGE_KEY = "proyecto-green-history-v1"; // Nuevo almacenamiento para historial
 const FIREBASE_CONFIG = {
   projectId: "luro-control",
   appId: "1:541972603526:web:559dc85853c88d8c18e707",
@@ -67,6 +68,7 @@ const presenceSessionId = loadPresenceSessionId();
 
 let state = loadStoredState();
 let session = loadStoredSession();
+let historyState = loadHistoryState(); // Estado separado para historial
 const cloudSync = {
   enabled: true,
   initialized: false,
@@ -240,6 +242,19 @@ function loadStoredSession() {
       coldRoomAccessCollaboratorId: "",
       ordersAuthorized: false,
       ordersAccessCollaboratorId: "",
+    };
+  }
+}
+
+function loadHistoryState() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || "{}");
+    return {
+      completedOrders: raw.completedOrders || [],
+    };
+  } catch (error) {
+    return {
+      completedOrders: [],
     };
   }
 }
@@ -954,6 +969,10 @@ function applyRemoteState(remoteState) {
 function saveState() {
   localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(state));
   queueCloudStateSave();
+}
+
+function saveHistoryState() {
+  localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(historyState));
 }
 
 function saveSession() {
@@ -3750,43 +3769,67 @@ window.cleanSpecificOrders = function() {
 
 // Función para eliminar TODOS los pedidos activos
 window.clearAllActiveOrders = function() {
-  console.log("Clearing ALL active orders...");
+  console.log("Moving ALL active orders to history...");
   
-  if (!confirm("¿Estás seguro de eliminar TODOS los pedidos activos? Esta acción no se puede deshacer.")) {
+  if (!confirm("¿Estás seguro de mover TODOS los pedidos activos al historial?")) {
     return;
   }
   
-  let clearedCount = 0;
+  let movedCount = 0;
   
-  // Recorrer todos los pedidos y marcar como completados
-  for (let i = 0; i < state.kitchenOrders.length; i++) {
+  // Recorrer todos los pedidos y moverlos al historial
+  for (let i = state.kitchenOrders.length - 1; i >= 0; i--) {
     const order = state.kitchenOrders[i];
     
     if (order.status !== "completada") {
-      order.status = "completada";
-      order.completedAt = new Date().toISOString();
-      order.completedBy = getAuthenticatedCollaborator()?.name || "Sistema";
+      console.log("Moving order to history:", order.number);
       
-      state.kitchenOrders[i] = order;
-      clearedCount++;
+      // Mover al historial separado
+      moveToHistory(order);
       
-      console.log("Order cleared:", order.number);
+      // Eliminar del array de activos
+      state.kitchenOrders.splice(i, 1);
+      movedCount++;
     }
   }
   
-  if (clearedCount > 0) {
+  if (movedCount > 0) {
     reconcileNotificationsWithInventory();
     saveState();
     
-    alert(`Se eliminaron ${clearedCount} pedidos activos correctamente`);
+    alert(`Se movieron ${movedCount} pedidos al historial correctamente`);
     
+    // Forzar recarga completa
     setTimeout(() => {
-      render();
-    }, 100);
+      location.reload();
+    }, 500);
+    
   } else {
-    alert("No hay pedidos activos para eliminar");
+    alert("No hay pedidos activos para mover");
   }
 };
+
+// Función para mover un pedido al historial separado
+function moveToHistory(order) {
+  console.log("Moving order to history:", order.number);
+  
+  // Crear copia del pedido para el historial
+  const historyOrder = {
+    ...order,
+    status: "completed",
+    completedAt: new Date().toISOString(),
+    completedBy: getAuthenticatedCollaborator()?.name || "Sistema",
+    movedToHistoryAt: new Date().toISOString(),
+  };
+  
+  // Añadir al historial separado
+  historyState.completedOrders.push(historyOrder);
+  
+  // Guardar historial
+  saveHistoryState();
+  
+  console.log("Order moved to history successfully");
+}
 
 // Función para eliminar pedidos activos (no mover a historial)
 window.deleteActiveOrders = function() {
@@ -3885,24 +3928,14 @@ window.clearAllHistory = function() {
   }
   
   try {
-    let deletedCount = 0;
-    
-    // Eliminar todos los pedidos con status "completada"
-    for (let i = state.kitchenOrders.length - 1; i >= 0; i--) {
-      const order = state.kitchenOrders[i];
-      
-      if (order.status === "completada") {
-        console.log("Deleting history order:", order.number);
-        
-        // Eliminar completamente del array
-        state.kitchenOrders.splice(i, 1);
-        deletedCount++;
-      }
-    }
+    const deletedCount = historyState.completedOrders.length;
     
     if (deletedCount > 0) {
-      reconcileNotificationsWithInventory();
-      saveState();
+      // Limpiar el historial separado
+      historyState.completedOrders = [];
+      
+      // Guardar historial vacío
+      saveHistoryState();
       
       alert(`Se eliminaron ${deletedCount} pedidos del historial correctamente`);
       
@@ -4083,7 +4116,7 @@ function renderOrdersModule() {
               🗑️ Limpiar Historial
             </button>
           </div>
-          ${renderCompletedOrdersList(completedKitchenOrders)}
+          ${renderCompletedOrdersList(historyState.completedOrders)}
         </section>
       ` : ""}
     </div>
@@ -7943,10 +7976,15 @@ function deleteKitchenOrder(orderId) {
   }
 
   console.log("Order found, moving to history:", order.number);
-  // Cambiar estado a "completada" en lugar de eliminar
-  order.status = "completada";
-  order.completedAt = new Date().toISOString();
-  order.completedBy = getAuthenticatedCollaborator()?.name || "Sistema";
+  
+  // Mover al historial separado
+  moveToHistory(order);
+  
+  // Eliminar del array de activos
+  const orderIndex = state.kitchenOrders.findIndex(o => o.id === orderId);
+  if (orderIndex !== -1) {
+    state.kitchenOrders.splice(orderIndex, 1);
+  }
   
   reconcileNotificationsWithInventory();
   saveState();
