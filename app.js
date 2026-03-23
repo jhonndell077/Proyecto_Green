@@ -3694,6 +3694,7 @@ function renderCompletedOrdersList(completedOrders) {
               <span class="pill">Autorizado por: ${escapeHtml(order.authorizedByName || "Sin autorización")}</span>
               <span class="pill">${order.items.length} productos</span>
               ${order.sentToBranch ? '<span class="pill">Enviado a sucursal</span>' : ''}
+              ${order.completedAt ? `<span class="pill">Completado: ${escapeHtml(formatDate(order.completedAt))}</span>` : ''}
             </div>
             <div class="table-shell">
               <table>
@@ -3721,8 +3722,8 @@ function renderCompletedOrdersList(completedOrders) {
             </div>
             <p class="text-soft">
               ${order.sentToBranch 
-                ? "Pedido enviado a sucursal y completado."
-                : "Pedido completado y procesado."
+                ? `Pedido enviado a sucursal y completado${order.completedBy ? ` por ${escapeHtml(order.completedBy)}` : ''}.`
+                : `Pedido completado y procesado${order.completedBy ? ` por ${escapeHtml(order.completedBy)}` : ''}.`
               }
             </p>
           </div>
@@ -7519,10 +7520,14 @@ function deleteKitchenOrder(orderId) {
     return;
   }
 
-  state.kitchenOrders = state.kitchenOrders.filter((item) => item.id !== orderId);
+  // Cambiar estado a "completada" en lugar de eliminar
+  order.status = "completada";
+  order.completedAt = new Date().toISOString();
+  order.completedBy = getAuthenticatedCollaborator()?.name || "Sistema";
+  
   reconcileNotificationsWithInventory();
   saveState();
-  setFlash("kitchen-orders", "success", `Pedido ${order.number} eliminado correctamente.`);
+  setFlash("kitchen-orders", "success", `Pedido ${order.number} movido al historial.`);
   render();
 }
 
