@@ -3973,66 +3973,16 @@ function renderOrdersModule() {
       <div class="tabs-container">
         <div class="tabs-list">
           <button 
-            class="tab-btn ${currentTab === "activos" ? "active" : ""}" 
+            class="tab-btn active" 
             data-action="set-orders-tab" 
             data-tab="activos"
           >
             📋 Pedidos Activos
           </button>
-          <button 
-            class="tab-btn ${currentTab === "historial" ? "active" : ""}" 
-            data-action="set-orders-tab" 
-            data-tab="historial"
-          >
-            📚 Historial
-          </button>
-          <!-- Botón de limpieza de emergencia -->
+          <!-- Botón de diagnóstico Firebase -->
           <button 
             class="tab-btn" 
-            style="background: var(--danger); color: white; margin-left: auto;"
-            onclick="cleanSpecificOrders()"
-          >
-            🧹 Limpiar Pedidos
-          </button>
-          <!-- Botón para eliminar TODOS los pedidos -->
-          <button 
-            class="tab-btn" 
-            style="background: var(--secondary); color: white;"
-            onclick="clearAllActiveOrders()"
-            title="Mover todos los pedidos activos al historial"
-          >
-            🗑️ Mover a Historial
-          </button>
-          <!-- Botón para eliminar pedidos activos -->
-          <button 
-            class="tab-btn" 
-            style="background: #dc3545; color: white;"
-            onclick="deleteActiveOrders()"
-            title="Eliminar permanentemente todos los pedidos activos"
-          >
-            ❌ Eliminar Activos
-          </button>
-          <!-- Botón de eliminación forzada -->
-          <button 
-            class="tab-btn" 
-            style="background: #6c757d; color: white;"
-            onclick="forceDeleteSpecificOrder('kitchen-order-ec938096-ca63-4324-8695-de044acd26d5', 'REQ-2603231011-434')"
-            title="Forzar eliminación del pedido problemático"
-          >
-            ⚡ Forzar Eliminar
-          </button>
-          <!-- Botones de diagnóstico Firebase -->
-          <button 
-            class="tab-btn" 
-            style="background: var(--warning); color: white;"
-            onclick="diagnoseFirebaseConnection()"
-            title="Diagnóstico de conectividad Firebase"
-          >
-            🔍 Diagnóstico
-          </button>
-          <button 
-            class="tab-btn" 
-            style="background: var(--info); color: white;"
+            style="background: var(--info); color: white; margin-left: auto;"
             onclick="forceReconnectFirebase()"
             title="Forzar reconexión a Firebase"
           >
@@ -4100,26 +4050,7 @@ function renderOrdersModule() {
         }
       ` : ""}
 
-      ${currentTab === "historial" ? `
-        <section class="panel">
-          <div class="section-heading">
-            <div>
-              <h2>Historial de pedidos</h2>
-              <p>Aqui aparecen todos los pedidos completados o eliminados del sistema.</p>
-            </div>
-            <!-- Botón para limpiar todo el historial -->
-            <button 
-              class="btn btn-danger btn-small" 
-              onclick="clearAllHistory()"
-              title="Eliminar TODO el historial de pedidos"
-            >
-              🗑️ Limpiar Historial
-            </button>
-          </div>
-          ${renderCompletedOrdersList(historyState.completedOrders)}
-        </section>
-      ` : ""}
-    </div>
+      </div>
   `;
 }
 
