@@ -7975,20 +7975,24 @@ function deleteKitchenOrder(orderId) {
     return;
   }
 
-  console.log("Order found, moving to history:", order.number);
+  console.log("Order found, deleting completely:", order.number);
   
-  // Mover al historial separado
-  moveToHistory(order);
-  
-  // Eliminar del array de activos
+  // Eliminar completamente del array de activos
   const orderIndex = state.kitchenOrders.findIndex(o => o.id === orderId);
   if (orderIndex !== -1) {
     state.kitchenOrders.splice(orderIndex, 1);
   }
   
+  // También eliminar del historial si existe allí
+  const historyIndex = historyState.completedOrders.findIndex(o => o.id === orderId);
+  if (historyIndex !== -1) {
+    historyState.completedOrders.splice(historyIndex, 1);
+    saveHistoryState();
+  }
+  
   reconcileNotificationsWithInventory();
   saveState();
-  setFlash("kitchen-orders", "success", `Pedido ${order.number} movido al historial.`);
+  setFlash("kitchen-orders", "success", `Pedido ${order.number} eliminado completamente del sistema.`);
   render();
 }
 
