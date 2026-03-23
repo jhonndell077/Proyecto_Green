@@ -27,7 +27,6 @@ const CLOUD_STATE_DOCUMENT = "shared_state";
 const PRESENCE_COLLECTION = "project_green_presence";
 const PRESENCE_HEARTBEAT_MS = 15000;
 const PRESENCE_TTL_MS = 45000;
-const CLOUD_SYNC_MAX_RETRIES = 3;
 const CREDENTIALS = {
   username: "Green",
   password: "160623",
@@ -791,29 +790,35 @@ function sanitizeState(rawState) {
 }
 
 async function initializeCloudSync({ retrying = false } = {}) {
-  if (cloudSync.status === "pending") {
-    return;
+  if (cloudSync.retryTimerId) {
+    clearTimeout(cloudSync.retryTimerId);
+    cloudSync.retryTimerId = null;
   }
 
-  if (cloudSync.status === "online") {
-    return;
+  if (retrying && typeof cloudSync.unsubscribe === "function") {
+    cloudSync.unsubscribe();
+    cloudSync.unsubscribe = null;
   }
 
-  if (retrying && cloudSync.retryCount >= CLOUD_SYNC_MAX_RETRIES) {
-    cloudSync.status = "offline";
-    cloudSync.statusMessage = "Sincronización fallida después de varios intentos.";
-    return;
-  }
-
-  cloudSync.status = "pending";
+  cloudSync.enabled = true;
+  cloudSync.status = "connecting";
   cloudSync.statusMessage = retrying
-    ? `Reintentando sincronización... (${cloudSync.retryCount + 1}/${CLOUD_SYNC_MAX_RETRIES})`
-    : "Conectando con la nube...";
+    ? "Reconectando sincronización en vivo..."
+    : "Conectando sincronización en vivo...";
+  render();
 
   try {
-    const db = getFirestore();
-    const cloudStateRef = doc(db, FIRESTORE_DATABASE_ID, CLOUD_STATE_COLLECTION, CLOUD_STATE_DOCUMENT);
+    const remoteSnapshot = await getDoc(cloudStateRef);
 
+    if (remoteSnapshot.exists()) {
+      applyRemoteState(remoteSnapshot.data()?.state);
+    } else {
+      await pushStateToCloud(true);
+    }
+
+    cloudSync.initialized = true;
+    cloudSync.enabled = true;
+    cloudSync.retryCount = 0;
     cloudSync.status = "online";
     cloudSync.statusMessage = "Sincronización en vivo activa.";
 
@@ -821,34 +826,31 @@ async function initializeCloudSync({ retrying = false } = {}) {
       cloudStateRef,
       (snapshot) => {
         const syncWasOnline = cloudSync.status === "online";
-        cloudSync.status = "online";
-        cloudSync.statusMessage = "Sincronización en vivo activa.";
-        cloudSync.retryCount = 0;
-        if (syncWasOnline) {
+
+        if (!snapshot.exists()) {
           return;
         }
-        if (snapshot.exists()) {
-          const cloudState = snapshot.data();
-          if (cloudState?.data) {
-            const parsedState = safeParseJSON(cloudState.data, {});
-            updateStateFromCloud(parsedState);
-          }
+
+        cloudSync.enabled = true;
+        cloudSync.initialized = true;
+        cloudSync.retryCount = 0;
+        cloudSync.status = "online";
+        cloudSync.statusMessage = "Sincronización en vivo activa.";
+        const didApplyRemoteState = applyRemoteState(snapshot.data()?.state);
+
+        if (!didApplyRemoteState && !syncWasOnline) {
+          render();
         }
       },
       (error) => {
-        console.error("Cloud sync error:", error);
-        cloudSync.status = "offline";
-        cloudSync.statusMessage = "Error de sincronización.";
-        if (cloudSync.retryCount < CLOUD_SYNC_MAX_RETRIES) {
-          cloudSync.retryCount++;
-          void initializeCloudSync({ retrying: true });
-        }
-      }
+        console.error("Firestore sync listener error:", error);
+        handleCloudSyncFailure(error);
+      },
     );
+
+    render();
   } catch (error) {
-    console.error("Cloud sync initialization error:", error);
-    cloudSync.status = "offline";
-    cloudSync.statusMessage = "Sincronización fallida.";
+    console.error("Firestore initial sync error:", error);
     handleCloudSyncFailure(error);
   }
 }
@@ -3568,6 +3570,83 @@ function renderModulesHome() {
   `;
 }
 
+// Función de diagnóstico de conectividad Firebase
+window.diagnoseFirebaseConnection = async function() {
+  console.log("=== DIAGNÓSTICO DE CONECTIVIDAD FIREBASE ===");
+  
+  try {
+    // 1. Verificar configuración
+    console.log("1. Verificando configuración Firebase...");
+    console.log("Project ID:", FIREBASE_CONFIG.projectId);
+    console.log("Database ID:", FIRESTORE_DATABASE_ID);
+    console.log("Collection:", CLOUD_STATE_COLLECTION);
+    console.log("Document:", CLOUD_STATE_DOCUMENT);
+    
+    // 2. Verificar inicialización de Firebase
+    console.log("2. Verificando inicialización de Firebase...");
+    console.log("Firebase App:", firebaseApp);
+    console.log("Firestore:", firestore);
+    
+    // 3. Verificar referencias
+    console.log("3. Verificando referencias...");
+    console.log("Cloud State Ref:", cloudStateRef);
+    console.log("Presence Collection Ref:", presenceCollectionRef);
+    
+    // 4. Intentar conexión simple
+    console.log("4. Intentando conexión simple...");
+    const testDoc = await getDoc(cloudStateRef);
+    console.log("Conexión exitosa:", testDoc.exists());
+    
+    // 5. Verificar estado actual de sincronización
+    console.log("5. Estado actual de sincronización:");
+    console.log("cloudSync.status:", cloudSync.status);
+    console.log("cloudSync.enabled:", cloudSync.enabled);
+    console.log("cloudSync.initialized:", cloudSync.initialized);
+    console.log("cloudSync.statusMessage:", cloudSync.statusMessage);
+    
+    // 6. Verificar estado de red
+    console.log("6. Estado de red:");
+    console.log("navigator.onLine:", navigator.onLine);
+    
+    console.log("=== FIN DEL DIAGNÓSTICO ===");
+    
+    alert("Diagnóstico completado. Revisa la consola para detalles.");
+    
+  } catch (error) {
+    console.error("ERROR EN DIAGNÓSTICO:", error);
+    alert("Error en diagnóstico: " + error.message);
+  }
+};
+
+// Función para forzar reconexión
+window.forceReconnectFirebase = async function() {
+  console.log("Forzando reconexión a Firebase...");
+  
+  try {
+    // Resetear estado de sincronización
+    cloudSync.status = "connecting";
+    cloudSync.statusMessage = "Forzando reconexión...";
+    cloudSync.enabled = false;
+    cloudSync.initialized = false;
+    
+    if (cloudSync.unsubscribe) {
+      cloudSync.unsubscribe();
+      cloudSync.unsubscribe = null;
+    }
+    
+    render();
+    
+    // Reintentar inicialización
+    await initializeCloudSync({ retrying: true });
+    
+    alert("Reconexión forzada. Revisa el estado de sincronización.");
+    
+  } catch (error) {
+    console.error("Error en reconexión forzada:", error);
+    alert("Error en reconexión: " + error.message);
+  }
+};
+
 // Función de emergencia global para eliminar pedidos
 window.emergencyDeleteOrder = function(orderId, orderNumber) {
   console.log("Emergency delete called for:", orderId, orderNumber);
@@ -3708,6 +3787,23 @@ function renderOrdersModule() {
             onclick="cleanSpecificOrders()"
           >
             🧹 Limpiar Pedidos
+          </button>
+          <!-- Botones de diagnóstico Firebase -->
+          <button 
+            class="tab-btn" 
+            style="background: var(--warning); color: white;"
+            onclick="diagnoseFirebaseConnection()"
+            title="Diagnóstico de conectividad Firebase"
+          >
+            🔍 Diagnóstico
+          </button>
+          <button 
+            class="tab-btn" 
+            style="background: var(--info); color: white;"
+            onclick="forceReconnectFirebase()"
+            title="Forzar reconexión a Firebase"
+          >
+            🔄 Reconectar
           </button>
         </div>
       </div>
