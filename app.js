@@ -3628,6 +3628,49 @@ window.emergencyDeleteOrder = function(orderId, orderNumber) {
   }
 };
 
+// Función de limpieza masiva para los pedidos específicos
+window.cleanSpecificOrders = function() {
+  console.log("Cleaning specific orders...");
+  
+  const ordersToClean = [
+    "kitchen-order-565b96a8-5905-43ad-b331-081db38c1b4d", // REQ-2603231011-893
+    "kitchen-order-ec938096-ca63-4324-8695-de044acd26d5"  // REQ-2603231011-434
+  ];
+  
+  let cleanedCount = 0;
+  
+  ordersToClean.forEach(orderId => {
+    const orderIndex = state.kitchenOrders.findIndex(o => o.id === orderId);
+    
+    if (orderIndex !== -1) {
+      const order = state.kitchenOrders[orderIndex];
+      
+      // Cambiar estado a completado
+      order.status = "completada";
+      order.completedAt = new Date().toISOString();
+      order.completedBy = getAuthenticatedCollaborator()?.name || "Sistema";
+      
+      state.kitchenOrders[orderIndex] = order;
+      cleanedCount++;
+      
+      console.log("Order cleaned:", order.number);
+    }
+  });
+  
+  if (cleanedCount > 0) {
+    reconcileNotificationsWithInventory();
+    saveState();
+    
+    alert(`Se movieron ${cleanedCount} pedidos al historial correctamente`);
+    
+    setTimeout(() => {
+      render();
+    }, 100);
+  } else {
+    alert("No se encontraron los pedidos para limpiar");
+  }
+};
+
 function renderOrdersModule() {
   const orderPanels = getOrderPanelsWithRequests();
   const kitchenOrders = getSortedKitchenOrders();
@@ -3659,6 +3702,14 @@ function renderOrdersModule() {
             data-tab="historial"
           >
             📚 Historial
+          </button>
+          <!-- Botón de limpieza de emergencia -->
+          <button 
+            class="tab-btn" 
+            style="background: var(--danger); color: white; margin-left: auto;"
+            onclick="cleanSpecificOrders()"
+          >
+            🧹 Limpiar Pedidos
           </button>
         </div>
       </div>
