@@ -3837,6 +3837,51 @@ window.forceDeleteSpecificOrder = function(orderId, orderNumber) {
   }
 };
 
+// Función para eliminar todo el historial de pedidos
+window.clearAllHistory = function() {
+  console.log("Clearing ALL history orders...");
+  
+  if (!confirm("¿Estás seguro de eliminar TODO el historial de pedidos? Esta acción eliminará permanentemente todos los pedidos completados y no se puede deshacer.")) {
+    return;
+  }
+  
+  try {
+    let deletedCount = 0;
+    
+    // Eliminar todos los pedidos con status "completada"
+    for (let i = state.kitchenOrders.length - 1; i >= 0; i--) {
+      const order = state.kitchenOrders[i];
+      
+      if (order.status === "completada") {
+        console.log("Deleting history order:", order.number);
+        
+        // Eliminar completamente del array
+        state.kitchenOrders.splice(i, 1);
+        deletedCount++;
+      }
+    }
+    
+    if (deletedCount > 0) {
+      reconcileNotificationsWithInventory();
+      saveState();
+      
+      alert(`Se eliminaron ${deletedCount} pedidos del historial correctamente`);
+      
+      // Forzar recarga completa
+      setTimeout(() => {
+        location.reload();
+      }, 500);
+      
+    } else {
+      alert("No hay pedidos en el historial para eliminar");
+    }
+    
+  } catch (error) {
+    console.error("Error clearing history:", error);
+    alert("Error al limpiar historial: " + error.message);
+  }
+};
+
 function renderOrdersModule() {
   const orderPanels = getOrderPanelsWithRequests();
   const kitchenOrders = getSortedKitchenOrders();
@@ -3981,6 +4026,14 @@ function renderOrdersModule() {
               <h2>Historial de pedidos</h2>
               <p>Aqui aparecen todos los pedidos completados o eliminados del sistema.</p>
             </div>
+            <!-- Botón para limpiar todo el historial -->
+            <button 
+              class="btn btn-danger btn-small" 
+              onclick="clearAllHistory()"
+              title="Eliminar TODO el historial de pedidos"
+            >
+              🗑️ Limpiar Historial
+            </button>
           </div>
           ${renderCompletedOrdersList(completedKitchenOrders)}
         </section>
