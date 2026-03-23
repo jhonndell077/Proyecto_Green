@@ -3748,6 +3748,46 @@ window.cleanSpecificOrders = function() {
   }
 };
 
+// Función para eliminar TODOS los pedidos activos
+window.clearAllActiveOrders = function() {
+  console.log("Clearing ALL active orders...");
+  
+  if (!confirm("¿Estás seguro de eliminar TODOS los pedidos activos? Esta acción no se puede deshacer.")) {
+    return;
+  }
+  
+  let clearedCount = 0;
+  
+  // Recorrer todos los pedidos y marcar como completados
+  for (let i = 0; i < state.kitchenOrders.length; i++) {
+    const order = state.kitchenOrders[i];
+    
+    if (order.status !== "completada") {
+      order.status = "completada";
+      order.completedAt = new Date().toISOString();
+      order.completedBy = getAuthenticatedCollaborator()?.name || "Sistema";
+      
+      state.kitchenOrders[i] = order;
+      clearedCount++;
+      
+      console.log("Order cleared:", order.number);
+    }
+  }
+  
+  if (clearedCount > 0) {
+    reconcileNotificationsWithInventory();
+    saveState();
+    
+    alert(`Se eliminaron ${clearedCount} pedidos activos correctamente`);
+    
+    setTimeout(() => {
+      render();
+    }, 100);
+  } else {
+    alert("No hay pedidos activos para eliminar");
+  }
+};
+
 function renderOrdersModule() {
   const orderPanels = getOrderPanelsWithRequests();
   const kitchenOrders = getSortedKitchenOrders();
@@ -3787,6 +3827,15 @@ function renderOrdersModule() {
             onclick="cleanSpecificOrders()"
           >
             🧹 Limpiar Pedidos
+          </button>
+          <!-- Botón para eliminar TODOS los pedidos -->
+          <button 
+            class="tab-btn" 
+            style="background: var(--secondary); color: white;"
+            onclick="clearAllActiveOrders()"
+            title="Eliminar TODOS los pedidos activos"
+          >
+            🗑️ Eliminar Todo
           </button>
           <!-- Botones de diagnóstico Firebase -->
           <button 
