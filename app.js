@@ -795,19 +795,12 @@ async function initializeCloudSync({ retrying = false } = {}) {
   }
 
   if (cloudSync.status === "online") {
-    // Desconectar sincronización automática
-    if (typeof cloudSync.unsubscribe === "function") {
-      cloudSync.unsubscribe();
-      cloudSync.unsubscribe = null;
-    }
-    cloudSync.status = "offline";
-    cloudSync.statusMessage = "Sincronización desactivada.";
     return;
   }
 
   if (retrying && cloudSync.retryCount >= CLOUD_SYNC_MAX_RETRIES) {
     cloudSync.status = "offline";
-    cloudSync.statusMessage = "Sincronización desactivada después de varios intentos.";
+    cloudSync.statusMessage = "Sincronización fallida después de varios intentos.";
     return;
   }
 
@@ -823,52 +816,38 @@ async function initializeCloudSync({ retrying = false } = {}) {
     cloudSync.status = "online";
     cloudSync.statusMessage = "Sincronización en vivo activa.";
 
-    // DESACTIVADO: No usar onSnapshot para evitar actualizaciones automáticas
-    // cloudSync.unsubscribe = onSnapshot(
-    //   cloudStateRef,
-    //   (snapshot) => {
-    //     const syncWasOnline = cloudSync.status === "online";
-    //     cloudSync.status = "online";
-    //     cloudSync.statusMessage = "Sincronización en vivo activa.";
-    //     cloudSync.retryCount = 0;
-    //     if (syncWasOnline) {
-    //       return;
-    //     }
-    //     if (snapshot.exists()) {
-    //       const cloudState = snapshot.data();
-    //       if (cloudState?.data) {
-    //         const parsedState = safeParseJSON(cloudState.data, {});
-    //         updateStateFromCloud(parsedState);
-    //       }
-    //     }
-    //   },
-    //   (error) => {
-    //     console.error("Cloud sync error:", error);
-    //     cloudSync.status = "offline";
-    //     cloudSync.statusMessage = "Error de sincronización.";
-    //     if (cloudSync.retryCount < CLOUD_SYNC_MAX_RETRIES) {
-    //       cloudSync.retryCount++;
-    //       void initializeCloudSync({ retrying: true });
-    //     }
-    //   }
-    // );
-
-    // Solo hacer una carga inicial, sin sincronización continua
-    const snapshot = await getDoc(cloudStateRef);
-    if (snapshot.exists()) {
-      const cloudState = snapshot.data();
-      if (cloudState?.data) {
-        const parsedState = safeParseJSON(cloudState.data, {});
-        updateStateFromCloud(parsedState);
+    cloudSync.unsubscribe = onSnapshot(
+      cloudStateRef,
+      (snapshot) => {
+        const syncWasOnline = cloudSync.status === "online";
+        cloudSync.status = "online";
+        cloudSync.statusMessage = "Sincronización en vivo activa.";
+        cloudSync.retryCount = 0;
+        if (syncWasOnline) {
+          return;
+        }
+        if (snapshot.exists()) {
+          const cloudState = snapshot.data();
+          if (cloudState?.data) {
+            const parsedState = safeParseJSON(cloudState.data, {});
+            updateStateFromCloud(parsedState);
+          }
+        }
+      },
+      (error) => {
+        console.error("Cloud sync error:", error);
+        cloudSync.status = "offline";
+        cloudSync.statusMessage = "Error de sincronización.";
+        if (cloudSync.retryCount < CLOUD_SYNC_MAX_RETRIES) {
+          cloudSync.retryCount++;
+          void initializeCloudSync({ retrying: true });
+        }
       }
-    }
-
-    cloudSync.status = "offline";
-    cloudSync.statusMessage = "Sincronización desactivada.";
+    );
   } catch (error) {
     console.error("Cloud sync initialization error:", error);
     cloudSync.status = "offline";
-    cloudSync.statusMessage = "Sincronización desactivada por error.";
+    cloudSync.statusMessage = "Sincronización fallida.";
     handleCloudSyncFailure(error);
   }
 }
