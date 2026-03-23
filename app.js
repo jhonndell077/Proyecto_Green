@@ -27,6 +27,7 @@ const CLOUD_STATE_DOCUMENT = "shared_state";
 const PRESENCE_COLLECTION = "project_green_presence";
 const PRESENCE_HEARTBEAT_MS = 15000;
 const PRESENCE_TTL_MS = 45000;
+const CLOUD_SYNC_MAX_RETRIES = 3;
 const CREDENTIALS = {
   username: "Green",
   password: "160623",
