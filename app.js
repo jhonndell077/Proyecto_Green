@@ -3570,6 +3570,39 @@ function renderModulesHome() {
   `;
 }
 
+// Función de emergencia global para eliminar pedidos
+window.emergencyDeleteOrder = function(orderId, orderNumber) {
+  console.log("Emergency delete called for:", orderId, orderNumber);
+  
+  if (confirm(`¿Estás seguro de eliminar el pedido ${orderNumber}? Se moverá al historial.`)) {
+    try {
+      // Buscar el pedido directamente
+      const order = state.kitchenOrders.find(o => o.id === orderId);
+      
+      if (!order) {
+        alert('No se encontró el pedido');
+        return;
+      }
+      
+      // Cambiar estado a completado
+      order.status = "completada";
+      order.completedAt = new Date().toISOString();
+      order.completedBy = getAuthenticatedCollaborator()?.name || "Sistema";
+      
+      // Guardar y renderizar
+      reconcileNotificationsWithInventory();
+      saveState();
+      
+      alert(`Pedido ${orderNumber} movido al historial correctamente`);
+      render();
+      
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      alert('Error al eliminar el pedido: ' + error.message);
+    }
+  }
+};
+
 function renderOrdersModule() {
   const orderPanels = getOrderPanelsWithRequests();
   const kitchenOrders = getSortedKitchenOrders();
@@ -5624,13 +5657,13 @@ function renderKitchenOrderCard(order) {
         >
           Imprimir pedido
         </button>
+        <!-- Botón de emergencia que funciona directamente -->
         <button
           class="btn btn-danger btn-small"
           type="button"
-          data-action="delete-kitchen-order"
-          data-id="${escapeHtml(order.id)}"
+          onclick="emergencyDeleteOrder('${escapeHtml(order.id)}', '${escapeHtml(order.number)}')"
         >
-          Eliminar pedido
+          🚨 Eliminar pedido
         </button>
       </div>
     </article>
