@@ -8184,6 +8184,11 @@ function viewOrderModal(orderId) {
 
   document.body.appendChild(modal);
   modal.style.display = "flex";
+  
+  // Forzar actualización de eventos para el modal
+  setTimeout(() => {
+    render();
+  }, 100);
 }
 
 function handleDeliveredQuantityChange(input) {
@@ -8313,7 +8318,7 @@ function sendOrderToBranch(orderId) {
 
 function generateBranchNotification(order) {
   const notification = {
-    id: generateId(),
+    id: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `notification-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     type: 'branch_delivery',
     orderId: order.id,
     orderNumber: order.number,
