@@ -1265,6 +1265,7 @@ function handleClick(event) {
       printKitchenOrder(String(trigger.dataset.id || ""));
       return;
     case "delete-kitchen-order":
+      console.log("Delete kitchen order clicked:", String(trigger.dataset.id || ""));
       deleteKitchenOrder(String(trigger.dataset.id || ""));
       return;
     case "forward-kitchen-order":
@@ -7512,14 +7513,17 @@ function getKitchenOrderById(orderId) {
 }
 
 function deleteKitchenOrder(orderId) {
+  console.log("deleteKitchenOrder called with:", orderId);
   const order = getKitchenOrderById(orderId);
 
   if (!order) {
+    console.log("Order not found:", orderId);
     setFlash("kitchen-orders", "error", "No se encontro el pedido que intentabas eliminar.");
     render();
     return;
   }
 
+  console.log("Order found, moving to history:", order.number);
   // Cambiar estado a "completada" en lugar de eliminar
   order.status = "completada";
   order.completedAt = new Date().toISOString();
