@@ -1283,6 +1283,10 @@ function handleClick(event) {
         String(trigger.dataset.productName || "")
       );
       return;
+    case "set-orders-tab":
+      ui.ordersTab = String(trigger.dataset.tab || "activos");
+      render();
+      return;
     case "close-modal":
       const modal = trigger.closest(".modal-overlay");
       if (modal) {
@@ -3565,74 +3569,103 @@ function renderOrdersModule() {
   const forwardedKitchenOrders = activeKitchenOrders.filter((order) => order.forwardedToDispatch === true);
   const completedKitchenOrders = kitchenOrders.filter((order) => order.status === "completada");
 
+  const currentTab = ui.ordersTab || "activos";
+
   return `
     <div class="page-stack">
       ${renderFlash("orders")}
       ${renderFlash("kitchen-orders")}
-      <section class="panel">
-        ${
-          activeKitchenOrders.length === 0
-            ? renderEmptyState(
-                "No hay pedidos activos",
-                "Cuando una marca marque productos desde Sucursales, el pedido aparecera aqui automaticamente.",
-              )
-            : `
-              <div class="section-heading">
-                <div>
-                  <h2>Pedidos activos</h2>
-                  <p>Aqui puedes ver cuantos pedidos operativos siguen abiertos dentro del modulo Pedidos.</p>
-                </div>
-              </div>
-              <div class="subtle-list">
-                <div class="subtle-item">
-                  <span class="text-soft">Pedidos activos</span>
-                  <strong>${activeKitchenOrders.length}</strong>
-                </div>
-                <div class="subtle-item">
-                  <span class="text-soft">Pendientes</span>
-                  <strong>${pendingKitchenOrders.length}</strong>
-                </div>
-                <div class="subtle-item">
-                  <span class="text-soft">Enviados al encargado</span>
-                  <strong>${forwardedKitchenOrders.length}</strong>
-                </div>
-              </div>
-            `
-        }
-      </section>
-      ${
-        orderPanels.length > 0
-          ? `
-            <section class="module-grid branch-grid">
-              ${orderPanels.map((panel) => renderOrderPanelCard(panel)).join("")}
-            </section>
-          `
-          : ""
-      }
-      ${
-        kitchenOrders.length > 0
-          ? `
-            <section class="panel">
-              <div class="section-heading">
-                <div>
-                  <h2>Pedidos enviados</h2>
-                  <p>Aqui aparecen los pedidos operativos ya preparados, con opcion de imprimirlos o enviarlos al encargado.</p>
-                </div>
-              </div>
-              ${renderKitchenOrdersList()}
-            </section>
-          `
-          : ""
-      }
-      <section class="panel">
-        <div class="section-heading">
-          <div>
-            <h2>Historial de pedidos</h2>
-            <p>Aqui aparecen todos los pedidos completados o eliminados del sistema.</p>
-          </div>
+      
+      <!-- Pestañas de navegación -->
+      <div class="tabs-container">
+        <div class="tabs-list">
+          <button 
+            class="tab-btn ${currentTab === "activos" ? "active" : ""}" 
+            data-action="set-orders-tab" 
+            data-tab="activos"
+          >
+            📋 Pedidos Activos
+          </button>
+          <button 
+            class="tab-btn ${currentTab === "historial" ? "active" : ""}" 
+            data-action="set-orders-tab" 
+            data-tab="historial"
+          >
+            📚 Historial
+          </button>
         </div>
-        ${renderCompletedOrdersList(completedKitchenOrders)}
-      </section>
+      </div>
+
+      <!-- Contenido de la pestaña activa -->
+      ${currentTab === "activos" ? `
+        <section class="panel">
+          ${
+            activeKitchenOrders.length === 0
+              ? renderEmptyState(
+                  "No hay pedidos activos",
+                  "Cuando una marca marque productos desde Sucursales, el pedido aparecera aqui automaticamente.",
+                )
+              : `
+                <div class="section-heading">
+                  <div>
+                    <h2>Pedidos activos</h2>
+                    <p>Aqui puedes ver cuantos pedidos operativos siguen abiertos dentro del modulo Pedidos.</p>
+                  </div>
+                </div>
+                <div class="subtle-list">
+                  <div class="subtle-item">
+                    <span class="text-soft">Pedidos activos</span>
+                    <strong>${activeKitchenOrders.length}</strong>
+                  </div>
+                  <div class="subtle-item">
+                    <span class="text-soft">Pendientes</span>
+                    <strong>${pendingKitchenOrders.length}</strong>
+                  </div>
+                  <div class="subtle-item">
+                    <span class="text-soft">Enviados al encargado</span>
+                    <strong>${forwardedKitchenOrders.length}</strong>
+                  </div>
+                </div>
+              `
+          }
+        </section>
+        ${
+          orderPanels.length > 0
+            ? `
+              <section class="module-grid branch-grid">
+                ${orderPanels.map((panel) => renderOrderPanelCard(panel)).join("")}
+              </section>
+            `
+            : ""
+        }
+        ${
+          kitchenOrders.length > 0
+            ? `
+              <section class="panel">
+                <div class="section-heading">
+                  <div>
+                    <h2>Pedidos enviados</h2>
+                    <p>Aqui aparecen los pedidos operativos ya preparados, con opcion de imprimirlos o enviarlos al encargado.</p>
+                  </div>
+                </div>
+                ${renderKitchenOrdersList()}
+              </section>
+            `
+            : ""
+        }
+      ` : ""}
+
+      ${currentTab === "historial" ? `
+        <section class="panel">
+          <div class="section-heading">
+            <div>
+              <h2>Historial de pedidos</h2>
+              <p>Aqui aparecen todos los pedidos completados o eliminados del sistema.</p>
+            </div>
+          </div>
+          ${renderCompletedOrdersList(completedKitchenOrders)}
+        </section>
+      ` : ""}
     </div>
   `;
 }
