@@ -790,67 +790,85 @@ function sanitizeState(rawState) {
 }
 
 async function initializeCloudSync({ retrying = false } = {}) {
-  if (cloudSync.retryTimerId) {
-    clearTimeout(cloudSync.retryTimerId);
-    cloudSync.retryTimerId = null;
+  if (cloudSync.status === "pending") {
+    return;
   }
 
-  if (retrying && typeof cloudSync.unsubscribe === "function") {
-    cloudSync.unsubscribe();
-    cloudSync.unsubscribe = null;
+  if (cloudSync.status === "online") {
+    // Desconectar sincronización automática
+    if (typeof cloudSync.unsubscribe === "function") {
+      cloudSync.unsubscribe();
+      cloudSync.unsubscribe = null;
+    }
+    cloudSync.status = "offline";
+    cloudSync.statusMessage = "Sincronización desactivada.";
+    return;
   }
 
-  cloudSync.enabled = true;
-  cloudSync.status = "connecting";
+  if (retrying && cloudSync.retryCount >= CLOUD_SYNC_MAX_RETRIES) {
+    cloudSync.status = "offline";
+    cloudSync.statusMessage = "Sincronización desactivada después de varios intentos.";
+    return;
+  }
+
+  cloudSync.status = "pending";
   cloudSync.statusMessage = retrying
-    ? "Reconectando sincronización en vivo..."
-    : "Conectando sincronización en vivo...";
-  render();
+    ? `Reintentando sincronización... (${cloudSync.retryCount + 1}/${CLOUD_SYNC_MAX_RETRIES})`
+    : "Conectando con la nube...";
 
   try {
-    const remoteSnapshot = await getDoc(cloudStateRef);
+    const db = getFirestore();
+    const cloudStateRef = doc(db, FIRESTORE_DATABASE_ID, CLOUD_STATE_COLLECTION, CLOUD_STATE_DOCUMENT);
 
-    if (remoteSnapshot.exists()) {
-      applyRemoteState(remoteSnapshot.data()?.state);
-    } else {
-      await pushStateToCloud(true);
-    }
-
-    cloudSync.initialized = true;
-    cloudSync.enabled = true;
-    cloudSync.retryCount = 0;
     cloudSync.status = "online";
     cloudSync.statusMessage = "Sincronización en vivo activa.";
 
-    cloudSync.unsubscribe = onSnapshot(
-      cloudStateRef,
-      (snapshot) => {
-        const syncWasOnline = cloudSync.status === "online";
+    // DESACTIVADO: No usar onSnapshot para evitar actualizaciones automáticas
+    // cloudSync.unsubscribe = onSnapshot(
+    //   cloudStateRef,
+    //   (snapshot) => {
+    //     const syncWasOnline = cloudSync.status === "online";
+    //     cloudSync.status = "online";
+    //     cloudSync.statusMessage = "Sincronización en vivo activa.";
+    //     cloudSync.retryCount = 0;
+    //     if (syncWasOnline) {
+    //       return;
+    //     }
+    //     if (snapshot.exists()) {
+    //       const cloudState = snapshot.data();
+    //       if (cloudState?.data) {
+    //         const parsedState = safeParseJSON(cloudState.data, {});
+    //         updateStateFromCloud(parsedState);
+    //       }
+    //     }
+    //   },
+    //   (error) => {
+    //     console.error("Cloud sync error:", error);
+    //     cloudSync.status = "offline";
+    //     cloudSync.statusMessage = "Error de sincronización.";
+    //     if (cloudSync.retryCount < CLOUD_SYNC_MAX_RETRIES) {
+    //       cloudSync.retryCount++;
+    //       void initializeCloudSync({ retrying: true });
+    //     }
+    //   }
+    // );
 
-        if (!snapshot.exists()) {
-          return;
-        }
+    // Solo hacer una carga inicial, sin sincronización continua
+    const snapshot = await getDoc(cloudStateRef);
+    if (snapshot.exists()) {
+      const cloudState = snapshot.data();
+      if (cloudState?.data) {
+        const parsedState = safeParseJSON(cloudState.data, {});
+        updateStateFromCloud(parsedState);
+      }
+    }
 
-        cloudSync.enabled = true;
-        cloudSync.initialized = true;
-        cloudSync.retryCount = 0;
-        cloudSync.status = "online";
-        cloudSync.statusMessage = "Sincronización en vivo activa.";
-        const didApplyRemoteState = applyRemoteState(snapshot.data()?.state);
-
-        if (!didApplyRemoteState && !syncWasOnline) {
-          render();
-        }
-      },
-      (error) => {
-        console.error("Firestore sync listener error:", error);
-        handleCloudSyncFailure(error);
-      },
-    );
-
-    render();
+    cloudSync.status = "offline";
+    cloudSync.statusMessage = "Sincronización desactivada.";
   } catch (error) {
-    console.error("Firestore initial sync error:", error);
+    console.error("Cloud sync initialization error:", error);
+    cloudSync.status = "offline";
+    cloudSync.statusMessage = "Sincronización desactivada por error.";
     handleCloudSyncFailure(error);
   }
 }
