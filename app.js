@@ -3794,6 +3794,14 @@ function renderDispatchQueueCard(order) {
       </div>
       <div class="notification-actions">
         <button
+          class="btn btn-info btn-small"
+          type="button"
+          data-action="view-order"
+          data-id="${escapeHtml(order.id)}"
+        >
+          Ver pedido
+        </button>
+        <button
           class="btn btn-primary btn-small"
           type="button"
           data-action="dispatch-kitchen-order"
