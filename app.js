@@ -2694,7 +2694,7 @@ function renderFatalError(error) {
       <div class="login-card">
         <div class="login-header">
           <div class="brand-plate">GreenSalad</div>
-          <h1 class="login-title">Proyecto_Verde</h1>
+          <h1 class="login-title">Proyecto Venezuela</h1>
           <p class="login-copy">Se detecto un error al cargar la aplicacion.</p>
         </div>
         <div class="feedback error">${escapeHtml(message || "Error desconocido")}</div>
@@ -2709,7 +2709,7 @@ function renderLogin() {
       <div class="login-card">
         <div class="login-header">
           <div class="brand-plate">GreenSalad</div>
-          <h1 class="login-title">Proyecto_Verde</h1>
+          <h1 class="login-title">Proyecto Venezuela</h1>
           <p class="login-copy">Accede con Green o con las credenciales activas de cualquier usuario creado en el sistema.</p>
         </div>
         ${renderFlash("login")}
