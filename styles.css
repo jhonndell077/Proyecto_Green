@@ -1549,6 +1549,11 @@ tr:last-child td {
   color: var(--danger);
 }
 
+.status-completada {
+  background: var(--success);
+  color: white;
+}
+
 .incidente-list li {
   margin: 0.25rem 0;
   font-size: 0.875rem;

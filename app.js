@@ -3563,6 +3563,7 @@ function renderOrdersModule() {
   const activeKitchenOrders = kitchenOrders.filter((order) => order.status !== "completada");
   const pendingKitchenOrders = activeKitchenOrders.filter((order) => order.forwardedToDispatch !== true);
   const forwardedKitchenOrders = activeKitchenOrders.filter((order) => order.forwardedToDispatch === true);
+  const completedKitchenOrders = kitchenOrders.filter((order) => order.status === "completada");
 
   return `
     <div class="page-stack">
@@ -3623,6 +3624,82 @@ function renderOrdersModule() {
           `
           : ""
       }
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>Historial de pedidos</h2>
+            <p>Aqui aparecen todos los pedidos completados o eliminados del sistema.</p>
+          </div>
+        </div>
+        ${renderCompletedOrdersList(completedKitchenOrders)}
+      </section>
+    </div>
+  `;
+}
+
+function renderCompletedOrdersList(completedOrders) {
+  if (completedOrders.length === 0) {
+    return renderEmptyState(
+      "No hay pedidos en el historial",
+      "Los pedidos completados o eliminados aparecerán aquí automáticamente."
+    );
+  }
+
+  return `
+    <div class="notification-list">
+      ${completedOrders.map((order) => `
+        <article class="notification-card" style="opacity: 0.8;">
+          <div class="notification-head">
+            <strong>Pedido ${escapeHtml(order.number)}</strong>
+            <span class="status-chip status-completada">Completado</span>
+          </div>
+          <div class="notification-body">
+            <p><strong>${escapeHtml(order.branchName)} / ${escapeHtml(order.brandName)}</p>
+            <div class="notification-meta">
+              <span class="pill">Fecha: ${escapeHtml(formatDate(order.date))}</span>
+              <span class="pill">Solicitante: ${escapeHtml(order.requesterName || "Sin solicitante")}</span>
+              <span class="pill">Autorizado por: ${escapeHtml(order.authorizedByName || "Sin autorización")}</span>
+              <span class="pill">${order.items.length} productos</span>
+              ${order.sentToBranch ? '<span class="pill">Enviado a sucursal</span>' : ''}
+            </div>
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Unidad</th>
+                    <th>Solicitado</th>
+                    <th>Entregado</th>
+                    <th>Pendiente</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${order.items.map(item => `
+                    <tr class="${item.unavailable ? 'producto-no-disponible' : ''}">
+                      <td>${escapeHtml(item.productName)}</td>
+                      <td>${escapeHtml(item.unit || "unid.")}</td>
+                      <td>${formatNumber(item.requested)}</td>
+                      <td>${formatNumber(item.delivered)}</td>
+                      <td>${formatNumber(item.pending)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            <p class="text-soft">
+              ${order.sentToBranch 
+                ? "Pedido enviado a sucursal y completado."
+                : "Pedido completado y procesado."
+              }
+            </p>
+          </div>
+          <div class="notification-actions">
+            <button class="btn btn-secondary btn-small" type="button" data-action="print-kitchen-order" data-id="${escapeHtml(order.id)}">
+              Ver detalles
+            </button>
+          </div>
+        </article>
+      `).join('')}
     </div>
   `;
 }
