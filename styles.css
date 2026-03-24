@@ -1709,6 +1709,32 @@ tr:last-child td {
   flex: 0 0 auto;
 }
 
+.branch-check-item.disabled input[type="checkbox"] {
+  accent-color: var(--success);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.branch-check-item.disabled {
+  opacity: 0.8;
+  cursor: not-allowed;
+}
+
+.info-message {
+  background: linear-gradient(135deg, var(--info) 0%, var(--surface) 100%);
+  border: 1px solid var(--info);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.info-message p {
+  margin: 0;
+  color: var(--text);
+  font-weight: 500;
+}
+
 /* Estilos modernos para notificaciones de sucursales */
 .branch-notifications-section {
   margin-bottom: 2rem;

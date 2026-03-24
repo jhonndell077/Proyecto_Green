@@ -3969,9 +3969,11 @@ function renderOrderPanelCard(panel) {
         ${panel.products
           .map(
             (product) => `
-              <label class="branch-check-item">
+              <div class="branch-check-item disabled">
                 <input
                   type="checkbox"
+                  disabled
+                  checked
                   data-order-send="true"
                   data-branch-id="${escapeHtml(panel.branchId)}"
                   data-brand-name="${escapeHtml(panel.brandName)}"
@@ -3979,7 +3981,7 @@ function renderOrderPanelCard(panel) {
                 />
                 <span class="branch-check-copy">
                   <strong>${escapeHtml(product.name)}</strong>
-                  <small><strong>Enviar a Pedidos enviados:</strong> marca esta casilla para preparar el pedido operativo.</small>
+                  <small><strong>Producto solicitado:</strong> será incluido en el pedido consolidado de la sucursal.</small>
                   ${
                     product.dailyQuantity !== null && product.dailyQuantity > 0
                       ? `<small>Cantidad actual: ${formatNumber(product.dailyQuantity)} ${escapeHtml(product.unit)}</small>`
@@ -3993,15 +3995,18 @@ function renderOrderPanelCard(panel) {
                   <small class="${product.orderQuantity > 0 ? "stock-shortage-copy" : ""}">
                     ${
                       product.orderQuantity > 0
-                          ? `Se pediran ${formatNumber(product.orderQuantity)} ${escapeHtml(product.unit)} para completar.`
-                        : "Solo se enviara si realmente falta mercancia en tienda."
+                          ? `Se solicitarán ${formatNumber(product.orderQuantity)} ${escapeHtml(product.unit)} para completar.`
+                        : "Producto solicitado para el pedido consolidado."
                     }
                   </small>
                 </span>
-              </label>
+              </div>
             `,
           )
           .join("")}
+      </div>
+      <div class="info-message">
+        <p><strong>💡 Usa el botón "⚡ Crear Pedido Automático"</strong> para generar 1 solo pedido consolidado para toda la sucursal.</p>
       </div>
     </article>
   `;
