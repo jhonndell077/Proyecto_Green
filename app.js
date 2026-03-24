@@ -4502,7 +4502,7 @@ function renderBranchBrandProducts(branch, brandName, products) {
                               min="0"
                               inputmode="decimal"
                               placeholder="0"
-                              value="${dailyQuantity !== null ? escapeHtml(String(dailyQuantity)) : ""}"
+                              value=""
                               data-branch-daily-quantity-input="true"
                               data-branch-id="${escapeHtml(branch.id)}"
                               data-product-id="${escapeHtml(product.id)}"
@@ -5577,7 +5577,7 @@ function renderBranchStorageProducts(branch, products) {
                             min="0"
                             inputmode="decimal"
                             placeholder="0"
-                            value="${consumption !== null ? escapeHtml(String(consumption)) : ""}"
+                            value=""
                             data-branch-consumption-input="true"
                             data-branch-id="${escapeHtml(branch.id)}"
                             data-product-id="${escapeHtml(product.id)}"
@@ -10303,6 +10303,15 @@ function updateBranchConsumptionStoreStock(branchId, productId, rawValue) {
   }
 
   setBranchConsumptionValue(branchId, productId, hasValue ? nextStock : null, new Date().toISOString());
+  
+  // Limpiar el input después de guardar
+  setTimeout(() => {
+    const input = document.querySelector(`input[data-branch-consumption-input="true"][data-branch-id="${branchId}"][data-product-id="${productId}"]`);
+    if (input) {
+      input.value = "";
+    }
+  }, 100);
+  
   reconcileNotificationsWithInventory();
   saveState();
   render();
