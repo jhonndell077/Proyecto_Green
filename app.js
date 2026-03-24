@@ -3670,39 +3670,32 @@ window.forceReconnectFirebase = async function() {
 window.emergencyDeleteOrder = function(orderId, orderNumber) {
   console.log("Emergency delete called for:", orderId, orderNumber);
   
-  if (confirm(`¿Estás seguro de eliminar el pedido ${orderNumber}? Se moverá al historial.`)) {
+  if (confirm(`¿Estás seguro de eliminar el pedido ${orderNumber}? Se eliminará permanentemente del sistema.`)) {
     try {
       console.log("Confirmed deletion, searching for order...");
       
       // Buscar el pedido directamente
       let orderIndex = -1;
-      let order = null;
       
       for (let i = 0; i < state.kitchenOrders.length; i++) {
         if (state.kitchenOrders[i].id === orderId) {
           orderIndex = i;
-          order = state.kitchenOrders[i];
           break;
         }
       }
       
-      if (!order || orderIndex === -1) {
+      if (orderIndex === -1) {
         console.error("Order not found:", orderId);
         alert('No se encontró el pedido');
         return;
       }
       
-      console.log("Order found:", order);
+      console.log("Order found at index:", orderIndex);
       
-      // Cambiar estado a completado
-      order.status = "completada";
-      order.completedAt = new Date().toISOString();
-      order.completedBy = getAuthenticatedCollaborator()?.name || "Sistema";
+      // Eliminar completamente del array
+      state.kitchenOrders.splice(orderIndex, 1);
       
-      console.log("Order status changed to completed");
-      
-      // Actualizar el pedido en el array
-      state.kitchenOrders[orderIndex] = order;
+      console.log("Order deleted completely");
       
       // Guardar y renderizar
       reconcileNotificationsWithInventory();
@@ -3710,7 +3703,7 @@ window.emergencyDeleteOrder = function(orderId, orderNumber) {
       
       console.log("State saved, rendering...");
       
-      alert(`Pedido ${orderNumber} movido al historial correctamente`);
+      alert(`Pedido ${orderNumber} eliminado completamente del sistema.`);
       
       // Forzar renderizado completo
       setTimeout(() => {
