@@ -6292,6 +6292,7 @@ function renderNotificationsList(allowTaskActions = false) {
 function renderControlSection() {
   const productMetrics = getProductConsumptionMetrics();
   const collaboratorMetrics = getCollaboratorSpeedMetrics();
+  const branchConsumptionMetrics = getBranchConsumptionMetrics();
   const topProduct = productMetrics[0] || null;
   const fastestCollaborator = collaboratorMetrics[0] || null;
   const completedTasks = getCompletedTaskNotifications();
@@ -6301,6 +6302,10 @@ function renderControlSection() {
   const maxProductScore = Math.max(...productMetrics.map((metric) => metric.score), 1);
   const maxCollaboratorDuration = Math.max(
     ...collaboratorMetrics.map((metric) => metric.averageDurationMs),
+    1,
+  );
+  const maxBranchConsumption = Math.max(
+    ...branchConsumptionMetrics.map((metric) => metric.totalQuantity),
     1,
   );
 
@@ -6386,31 +6391,31 @@ function renderControlSection() {
         <article class="panel">
           <div class="section-heading">
             <div>
-              <h2>Velocidad por colaborador</h2>
-              <p>Se calcula con tareas de reposicion completadas y el tiempo que tardo cada una desde que llego la alerta.</p>
+              <h2>Consumo por tienda</h2>
+              <p>Muestra que tienda consume más productos según las solicitudes y salidas del inventario.</p>
             </div>
           </div>
           ${
-            collaboratorMetrics.length === 0
+            branchConsumptionMetrics.length === 0
               ? renderEmptyState(
-                  "Todavia no hay tiempos por colaborador",
-                  "Completa reposiciones para comparar quien termina mas rapido sus funciones.",
+                  "Todavia no hay datos de consumo",
+                  "Realiza pedidos desde las sucursales para ver el consumo por tienda.",
                 )
               : `
                 <div class="metric-chart">
-                  ${collaboratorMetrics
+                  ${branchConsumptionMetrics
                     .slice(0, 5)
                     .map(
                       (metric) => `
                         <article class="metric-row">
                           <div class="metric-head">
-                            <strong>${escapeHtml(metric.name)}</strong>
-                            <span>${formatElapsedTime(metric.averageDurationMs)} promedio</span>
+                            <strong>${escapeHtml(metric.branchName)}</strong>
+                            <span>${metric.requestCount} solicitudes · ${metric.outputCount} salidas</span>
                           </div>
                           <div class="metric-track">
-                            <span class="metric-fill metric-fill-success" style="width: ${formatChartWidth(metric.averageDurationMs, maxCollaboratorDuration)}"></span>
+                            <span class="metric-fill metric-fill-info" style="width: ${formatChartWidth(metric.totalQuantity, maxBranchConsumption)}"></span>
                           </div>
-                          <p class="helper-text">${metric.taskCount} tareas completadas asociadas.</p>
+                          <p class="helper-text">Consumo total: ${metric.totalQuantity.toFixed(2)} ${metric.unit}</p>
                         </article>
                       `,
                     )
@@ -10451,6 +10456,77 @@ function getCollaboratorSpeedMetrics() {
       }
 
       return left.name.localeCompare(right.name, "es");
+    });
+}
+
+function getBranchConsumptionMetrics() {
+  const metrics = new Map();
+
+  // Analizar pedidos de sucursales
+  if (state.branchRequests) {
+    state.branchRequests.forEach((request) => {
+      const branchName = request.branchName || "Sucursal desconocida";
+      
+      const current = metrics.get(branchName) || {
+        branchName,
+        requestCount: 0,
+        outputCount: 0,
+        totalQuantity: 0,
+        unit: "Libras",
+      };
+
+      current.requestCount += 1;
+      
+      // Sumar cantidades solicitadas
+      if (request.products) {
+        request.products.forEach((product) => {
+          if (product.quantity) {
+            current.totalQuantity += parseFloat(product.quantity) || 0;
+          }
+        });
+      }
+
+      metrics.set(branchName, current);
+    });
+  }
+
+  // Analizar salidas de inventario (operaciones de cocina)
+  state.inventoryOperations?.forEach((operation) => {
+    if (operation.type === "salida" && operation.branchName) {
+      const branchName = operation.branchName;
+      
+      const current = metrics.get(branchName) || {
+        branchName,
+        requestCount: 0,
+        outputCount: 0,
+        totalQuantity: 0,
+        unit: "Libras",
+      };
+
+      current.outputCount += 1;
+      
+      if (operation.quantity) {
+        current.totalQuantity += parseFloat(operation.quantity) || 0;
+      }
+
+      metrics.set(branchName, current);
+    }
+  });
+
+  return [...metrics.values()]
+    .filter((metric) => metric.totalQuantity > 0)
+    .sort((left, right) => {
+      // Ordenar por consumo total (mayor primero)
+      if (left.totalQuantity !== right.totalQuantity) {
+        return right.totalQuantity - left.totalQuantity;
+      }
+      
+      // Luego por número de solicitudes
+      if (left.requestCount !== right.requestCount) {
+        return right.requestCount - left.requestCount;
+      }
+      
+      return left.branchName.localeCompare(right.branchName, "es");
     });
 }
 
