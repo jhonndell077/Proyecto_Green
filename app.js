@@ -4349,6 +4349,12 @@ function renderDispatchQueueCard(order) {
   `;
 }
 
+function getOrdersReadyForDispatch() {
+  return getSortedKitchenOrders().filter(
+    (order) => order.forwardedToDispatch === true && order.status !== "completada",
+  );
+}
+
 function renderDispatchQueueList() {
   const orders = getOrdersReadyForDispatch();
 
