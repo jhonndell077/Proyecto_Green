@@ -4084,13 +4084,25 @@ function createConsolidatedBranchOrder(branchId) {
 
   // Agregar todos los productos solicitados
   let totalProducts = 0;
+  console.log("🔍 Creando pedido consolidado para:", branch.name);
+  console.log("🔍 BranchNeeds encontrados:", branchNeeds.length);
+  
   branchNeeds.forEach((branchNeed) => {
+    console.log("🔍 Procesando branchNeed:", branchNeed.brandName, "productos:", branchNeed.productIds.length);
     branchNeed.productIds.forEach((productId) => {
       const product = getProductById(productId);
-      if (!product) return;
+      if (!product) {
+        console.log("❌ Producto no encontrado:", productId);
+        return;
+      }
 
       const requestedQuantity = getBranchOrderSendQuantity(branchNeed, product);
-      if (requestedQuantity <= 0) return;
+      console.log("🔍 Producto:", product.name, "Cantidad solicitada:", requestedQuantity);
+      
+      if (requestedQuantity <= 0) {
+        console.log("❌ Cantidad inválida para:", product.name, requestedQuantity);
+        return;
+      }
 
       // Verificar si el producto ya está en el pedido
       const existingItem = targetOrder.items.find((item) => item.productId === product.id);
@@ -4098,6 +4110,7 @@ function createConsolidatedBranchOrder(branchId) {
         // Sumar las cantidades si el producto viene de múltiples marcas
         existingItem.requested = roundStock(existingItem.requested + requestedQuantity);
         existingItem.pending = roundStock(existingItem.pending + requestedQuantity);
+        console.log("🔄 Sumando al producto existente:", product.name, "nueva total:", existingItem.requested);
       } else {
         targetOrder.items.push({
           productId: product.id,
@@ -4110,9 +4123,13 @@ function createConsolidatedBranchOrder(branchId) {
           workedAt: "",
         });
         totalProducts++;
+        console.log("✅ Agregando producto:", product.name, "cantidad:", requestedQuantity);
       }
     });
   });
+
+  console.log("🔍 Total productos agregados:", totalProducts);
+  console.log("🔍 Items en el pedido:", targetOrder.items.length);
 
   if (targetOrder.items.length === 0) {
     setFlash("orders", "error", "No hay productos con cantidades válidas para solicitar.");
@@ -4121,15 +4138,21 @@ function createConsolidatedBranchOrder(branchId) {
 
   // Agregar el pedido a la lista
   state.kitchenOrders.unshift(targetOrder);
+  console.log("🔍 Pedido agregado a kitchenOrders. Total pedidos:", state.kitchenOrders.length);
+  console.log("🔍 Pedido creado:", targetOrder);
 
   // Limpiar las solicitudes de la sucursal
+  const beforeCount = state.branchNeeds.length;
   state.branchNeeds = state.branchNeeds.filter(
     (need) => need.branchId !== branchId
   );
+  const afterCount = state.branchNeeds.length;
+  console.log("🔍 Limpiando branchNeeds. Antes:", beforeCount, "Después:", afterCount);
 
   // Guardar y notificar
   saveState();
   setFlash("orders", "success", `Pedido consolidado creado para ${branch.name} con ${targetOrder.items.length} productos.`);
+  console.log("✅ Pedido guardado y renderizando...");
   render();
 }
 
