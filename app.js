@@ -1122,7 +1122,10 @@ function handleClick(event) {
   const action = trigger.dataset.action;
 
   // Debug para todos los clicks en botones con data-action
-  console.log("Button clicked:", action, trigger.dataset.id);
+  console.log("🔍 Button clicked:", action, trigger.dataset.id);
+  console.log("🔍 Button element:", trigger);
+  console.log("🔍 Button classes:", trigger.className);
+  console.log("🔍 Button HTML:", trigger.outerHTML);
 
   switch (action) {
     case "logout":
@@ -1326,7 +1329,17 @@ function handleClick(event) {
       deleteKitchenOrder(String(trigger.dataset.id || ""));
       return;
     case "forward-kitchen-order":
-      forwardKitchenOrderToDispatch(String(trigger.dataset.id || ""));
+      console.log("🔍 forward-kitchen-order clicked!");
+      console.log("🔍 Order ID:", String(trigger.dataset.id || ""));
+      console.log("🔍 Trigger element:", trigger);
+      console.log("🔍 Function exists:", typeof forwardKitchenOrderToDispatch);
+      
+      try {
+        forwardKitchenOrderToDispatch(String(trigger.dataset.id || ""));
+        console.log("✅ forwardKitchenOrderToDispatch executed successfully");
+      } catch (error) {
+        console.error("❌ Error in forwardKitchenOrderToDispatch:", error);
+      }
       return;
     case "view-order":
       viewOrderModal(String(trigger.dataset.id || ""));
