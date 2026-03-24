@@ -7947,9 +7947,13 @@ function deleteKitchenOrder(orderId) {
 }
 
 function forwardKitchenOrderToDispatch(orderId) {
+  // 🔥 Bloquear sincronización mientras se envía pedido
+  isCreatingOrder = true;
+  
   const order = getKitchenOrderById(orderId);
 
   if (!order) {
+    isCreatingOrder = false;
     setFlash("kitchen-orders", "error", "No se encontro el pedido que querias enviar al encargado.");
     render();
     return;
@@ -7959,6 +7963,7 @@ function forwardKitchenOrderToDispatch(orderId) {
   const normalizedBrandName = normalizeBranchBrand(order.brandName);
 
   if (!branch || !normalizedBrandName) {
+    isCreatingOrder = false;
     setFlash("kitchen-orders", "error", "No se pudo identificar la sucursal de este pedido.");
     render();
     return;
@@ -7987,6 +7992,11 @@ function forwardKitchenOrderToDispatch(orderId) {
     order.forwardedByRole = "";
     reconcileNotificationsWithInventory();
     saveState();
+    
+    // 🔥 Guardar en cloud antes de liberar
+    pushStateToCloud(true);
+    isCreatingOrder = false;
+    
     setFlash(
       "kitchen-orders",
       "info",
@@ -8009,8 +8019,19 @@ function forwardKitchenOrderToDispatch(orderId) {
   order.sentToKitchenByName = "";
   order.sentToKitchenByRole = "";
 
+  console.log("🔍 Enviando pedido al encargado:", order.number);
+  console.log("🔍 forwardedToDispatch:", order.forwardedToDispatch);
+
   reconcileNotificationsWithInventory();
   saveState();
+  
+  // 🔥 FORZAR guardado inmediato en Firebase
+  console.log("🔍 Forzando guardado en la nube...");
+  pushStateToCloud(true);
+
+  // 🔥 Liberar flag de protección
+  isCreatingOrder = false;
+  
   setFlash(
     "kitchen-orders",
     "success",
@@ -8018,6 +8039,7 @@ function forwardKitchenOrderToDispatch(orderId) {
       ? `Pedido ${order.number} revisado. Ya no habia cantidades pendientes para despachar.`
       : `Pedido ${order.number} enviado al encargado. Ya aparece en Salida de Productos listo para dar salida.`,
   );
+  console.log("✅ Pedido enviado al encargado y guardado");
   render();
 }
 
