@@ -4020,26 +4020,6 @@ function createConsolidatedBranchOrder(branchId) {
     return;
   }
 
-  const requester = getAuthenticatedIdentity() || {
-    id: "",
-    name: CREDENTIALS.username,
-    role: "administrador",
-    branch: "",
-  };
-
-  // Verificar si ya existe un pedido pendiente para esta sucursal
-  const existingOrder = state.kitchenOrders.find(
-    (order) =>
-      order.status === "pendiente" &&
-      order.forwardedToDispatch !== true &&
-      order.branchId === branch.id,
-  );
-
-  if (existingOrder) {
-    setFlash("orders", "error", `Ya existe un pedido pendiente para ${branch.name}.`);
-    return;
-  }
-
   // Obtener todos los productos solicitados de todas las marcas de esta sucursal
   const branchNeeds = state.branchNeeds.filter(
     (need) => need.branchId === branchId && need.productIds.length > 0
@@ -4050,45 +4030,14 @@ function createConsolidatedBranchOrder(branchId) {
     return;
   }
 
-  // Crear el pedido consolidado
-  const createdAt = new Date().toISOString();
-  const targetOrder = {
-    id: createId("kitchen-order"),
-    number: createKitchenOrderNumber(),
-    branchId: branch.id,
-    branchName: branch.name,
-    brandName: "Consolidado",
-    requesterId: requester.id,
-    requesterName: requester.name,
-    requesterRole: requester.role,
-    authorizedById: requester.id,
-    authorizedByName: requester.name,
-    authorizedByRole: normalizeCollaboratorRole(requester.role),
-    origin: "Pedidos",
-    destination: `${branch.name} / Consolidado`,
-    status: "pendiente",
-    date: today(),
-    createdAt,
-    forwardedToDispatch: false,
-    forwardedAt: "",
-    forwardedById: "",
-    forwardedByName: "",
-    forwardedByRole: "",
-    sentToKitchen: false,
-    sentToKitchenAt: "",
-    sentToKitchenById: "",
-    sentToKitchenByName: "",
-    sentToKitchenByRole: "",
-    items: [],
-  };
-
-  // Agregar todos los productos solicitados
-  let totalProducts = 0;
   console.log("🔍 Creando pedido consolidado para:", branch.name);
   console.log("🔍 BranchNeeds encontrados:", branchNeeds.length);
-  
+
+  // Procesar cada producto solicitado usando la lógica original
+  let totalProcessed = 0;
   branchNeeds.forEach((branchNeed) => {
     console.log("🔍 Procesando branchNeed:", branchNeed.brandName, "productos:", branchNeed.productIds.length);
+    
     branchNeed.productIds.forEach((productId) => {
       const product = getProductById(productId);
       if (!product) {
@@ -4096,6 +4045,7 @@ function createConsolidatedBranchOrder(branchId) {
         return;
       }
 
+      // Usar la lógica original del sistema
       const requestedQuantity = getBranchOrderSendQuantity(branchNeed, product);
       console.log("🔍 Producto:", product.name, "Cantidad solicitada:", requestedQuantity);
       
@@ -4104,44 +4054,22 @@ function createConsolidatedBranchOrder(branchId) {
         return;
       }
 
-      // Verificar si el producto ya está en el pedido
-      const existingItem = targetOrder.items.find((item) => item.productId === product.id);
-      if (existingItem) {
-        // Sumar las cantidades si el producto viene de múltiples marcas
-        existingItem.requested = roundStock(existingItem.requested + requestedQuantity);
-        existingItem.pending = roundStock(existingItem.pending + requestedQuantity);
-        console.log("🔄 Sumando al producto existente:", product.name, "nueva total:", existingItem.requested);
-      } else {
-        targetOrder.items.push({
-          productId: product.id,
-          productName: product.name,
-          unit: product.unit,
-          requested: requestedQuantity,
-          delivered: 0,
-          pending: requestedQuantity,
-          workedInKitchen: false,
-          workedAt: "",
-        });
-        totalProducts++;
-        console.log("✅ Agregando producto:", product.name, "cantidad:", requestedQuantity);
-      }
+      // Crear el pedido usando la función original del sistema
+      // pero modificada para consolidar por sucursal en lugar de por marca
+      sendBranchOrderToKitchenOrdersConsolidated(branchId, branchNeed.brandName, productId);
+      totalProcessed++;
+      console.log("✅ Procesando producto:", product.name);
     });
   });
 
-  console.log("🔍 Total productos agregados:", totalProducts);
-  console.log("🔍 Items en el pedido:", targetOrder.items.length);
+  console.log("🔍 Total productos procesados:", totalProcessed);
 
-  if (targetOrder.items.length === 0) {
+  if (totalProcessed === 0) {
     setFlash("orders", "error", "No hay productos con cantidades válidas para solicitar.");
     return;
   }
 
-  // Agregar el pedido a la lista
-  state.kitchenOrders.unshift(targetOrder);
-  console.log("🔍 Pedido agregado a kitchenOrders. Total pedidos:", state.kitchenOrders.length);
-  console.log("🔍 Pedido creado:", targetOrder);
-
-  // Limpiar las solicitudes de la sucursal
+  // Limpiar las solicitudes de la sucursal DESPUÉS de procesar
   const beforeCount = state.branchNeeds.length;
   state.branchNeeds = state.branchNeeds.filter(
     (need) => need.branchId !== branchId
@@ -4151,19 +4079,125 @@ function createConsolidatedBranchOrder(branchId) {
 
   // Guardar y notificar
   saveState();
-  setFlash("orders", "success", `Pedido consolidado creado para ${branch.name} con ${targetOrder.items.length} productos.`);
+  setFlash("orders", "success", `Pedido consolidado creado para ${branch.name} con ${totalProcessed} productos.`);
   console.log("✅ Pedido guardado y renderizando...");
   render();
 }
 
+// Versión modificada de sendBranchOrderToKitchenOrders para consolidar por sucursal
+function sendBranchOrderToKitchenOrdersConsolidated(branchId, brandName, productId) {
+  const branch = getBranchLocationById(branchId);
+  const normalizedBrandName = normalizeBranchBrand(brandName);
+  const product = getProductById(productId);
+  const requester = getAuthenticatedIdentity() || {
+    id: "",
+    name: CREDENTIALS.username,
+    role: "administrador",
+    branch: "",
+  };
+  const branchNeed = getBranchNeedRecord(branchId, normalizedBrandName);
+  const requestedQuantity = getBranchOrderSendQuantity(branchNeed, product);
+
+  if (!branch || !normalizedBrandName || !product) {
+    console.log("❌ Datos inválidos para crear pedido");
+    return;
+  }
+
+  if (requestedQuantity <= 0) {
+    console.log("❌ Cantidad no válida:", requestedQuantity);
+    return;
+  }
+
+  let updated = false;
+  const createdAt = new Date().toISOString();
+  
+  // Buscar pedido existente por sucursal (no por marca)
+  let targetOrder =
+    state.kitchenOrders.find(
+      (order) =>
+        order.status === "pendiente" &&
+        order.forwardedToDispatch !== true &&
+        order.branchId === branch.id,
+    ) || null;
+
+  if (!targetOrder) {
+    // Crear nuevo pedido consolidado si no existe
+    targetOrder = {
+      id: createId("kitchen-order"),
+      number: createKitchenOrderNumber(),
+      branchId: branch.id,
+      branchName: branch.name,
+      brandName: "Consolidado", // Indica que es un pedido consolidado
+      requesterId: requester.id,
+      requesterName: requester.name,
+      requesterRole: requester.role,
+      authorizedById: requester.id,
+      authorizedByName: requester.name,
+      authorizedByRole: normalizeCollaboratorRole(requester.role),
+      origin: "Pedidos",
+      destination: `${branch.name} / Consolidado`,
+      status: "pendiente",
+      date: today(),
+      createdAt,
+      forwardedToDispatch: false,
+      forwardedAt: "",
+      forwardedById: "",
+      forwardedByName: "",
+      forwardedByRole: "",
+      sentToKitchen: false,
+      sentToKitchenAt: "",
+      sentToKitchenById: "",
+      sentToKitchenByName: "",
+      sentToKitchenByRole: "",
+      items: [],
+    };
+    state.kitchenOrders.unshift(targetOrder);
+    console.log("✅ Nuevo pedido consolidado creado:", targetOrder.number);
+  }
+
+  // Agregar o actualizar el producto en el pedido
+  const existingItem = targetOrder.items.find((item) => item.productId === product.id);
+  if (existingItem) {
+    existingItem.requested = roundStock(existingItem.requested + requestedQuantity);
+    existingItem.pending = roundStock(existingItem.pending + requestedQuantity);
+    console.log("🔄 Actualizando producto existente:", product.name, "nueva cantidad:", existingItem.requested);
+  } else {
+    targetOrder.items.push({
+      productId: product.id,
+      productName: product.name,
+      unit: product.unit,
+      requested: requestedQuantity,
+      delivered: 0,
+      pending: requestedQuantity,
+      workedInKitchen: false,
+      workedAt: "",
+    });
+    console.log("✅ Agregando producto al pedido:", product.name, "cantidad:", requestedQuantity);
+  }
+
+  // Actualizar el estado de branchNeeds
+  state.branchNeeds = state.branchNeeds.map((branchNeed) => {
+    if (
+      branchNeed.branchId !== branchId ||
+      normalizeBranchBrand(branchNeed.brandName) !== normalizedBrandName
+    ) {
+      return branchNeed;
+    }
+
+    updated = true;
+    return {
+      ...branchNeed,
+      productIds: branchNeed.productIds.filter((id) => id !== productId),
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  reconcileNotificationsWithInventory();
+  console.log("✅ Pedido procesado exitosamente");
+}
+
 // Hacer la función disponible globalmente para onclick
 window.createConsolidatedBranchOrder = createConsolidatedBranchOrder;
-
-function getOrdersReadyForDispatch() {
-  return getSortedKitchenOrders().filter(
-    (order) => order.forwardedToDispatch === true && order.status !== "completada",
-  );
-}
 
 function defaultBranchStorage() {
   return BRANCH_LOCATIONS.map((branch) => ({
