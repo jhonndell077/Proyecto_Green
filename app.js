@@ -3946,6 +3946,25 @@ function renderOrderPanelCard(panel) {
         <span class="pill">${panel.products.length} productos pedidos</span>
         <span class="pill">${escapeHtml(panel.updatedAtLabel)}</span>
       </div>
+      <div class="actions-row">
+        <button 
+          class="btn btn-success" 
+          type="button" 
+          onclick="createConsolidatedBranchOrder('${escapeHtml(panel.branchId)}')"
+          title="Crear pedido consolidado para toda la sucursal"
+        >
+          ⚡ Crear Pedido Automático
+        </button>
+        <button 
+          class="btn btn-primary" 
+          type="button" 
+          data-action="open-branch-brand" 
+          data-branch-id="${escapeHtml(panel.branchId)}" 
+          data-brand-name="${escapeHtml(panel.brandName)}"
+        >
+          📋 Ver Detalles
+        </button>
+      </div>
       <div class="branch-checklist">
         ${panel.products
           .map(
@@ -3986,6 +4005,127 @@ function renderOrderPanelCard(panel) {
       </div>
     </article>
   `;
+}
+
+// Nueva función para generar automáticamente un pedido consolidado por sucursal
+function createConsolidatedBranchOrder(branchId) {
+  const branch = getBranchLocationById(branchId);
+  if (!branch) {
+    setFlash("orders", "error", "Sucursal no encontrada.");
+    return;
+  }
+
+  const requester = getAuthenticatedIdentity() || {
+    id: "",
+    name: CREDENTIALS.username,
+    role: "administrador",
+    branch: "",
+  };
+
+  // Verificar si ya existe un pedido pendiente para esta sucursal
+  const existingOrder = state.kitchenOrders.find(
+    (order) =>
+      order.status === "pendiente" &&
+      order.forwardedToDispatch !== true &&
+      order.branchId === branch.id,
+  );
+
+  if (existingOrder) {
+    setFlash("orders", "error", `Ya existe un pedido pendiente para ${branch.name}.`);
+    return;
+  }
+
+  // Obtener todos los productos solicitados de todas las marcas de esta sucursal
+  const branchNeeds = state.branchNeeds.filter(
+    (need) => need.branchId === branchId && need.productIds.length > 0
+  );
+
+  if (branchNeeds.length === 0) {
+    setFlash("orders", "error", `No hay productos solicitados para ${branch.name}.`);
+    return;
+  }
+
+  // Crear el pedido consolidado
+  const createdAt = new Date().toISOString();
+  const targetOrder = {
+    id: createId("kitchen-order"),
+    number: createKitchenOrderNumber(),
+    branchId: branch.id,
+    branchName: branch.name,
+    brandName: "Consolidado",
+    requesterId: requester.id,
+    requesterName: requester.name,
+    requesterRole: requester.role,
+    authorizedById: requester.id,
+    authorizedByName: requester.name,
+    authorizedByRole: normalizeCollaboratorRole(requester.role),
+    origin: "Pedidos",
+    destination: `${branch.name} / Consolidado`,
+    status: "pendiente",
+    date: today(),
+    createdAt,
+    forwardedToDispatch: false,
+    forwardedAt: "",
+    forwardedById: "",
+    forwardedByName: "",
+    forwardedByRole: "",
+    sentToKitchen: false,
+    sentToKitchenAt: "",
+    sentToKitchenById: "",
+    sentToKitchenByName: "",
+    sentToKitchenByRole: "",
+    items: [],
+  };
+
+  // Agregar todos los productos solicitados
+  let totalProducts = 0;
+  branchNeeds.forEach((branchNeed) => {
+    branchNeed.productIds.forEach((productId) => {
+      const product = getProductById(productId);
+      if (!product) return;
+
+      const requestedQuantity = getBranchOrderSendQuantity(branchNeed, product);
+      if (requestedQuantity <= 0) return;
+
+      // Verificar si el producto ya está en el pedido
+      const existingItem = targetOrder.items.find((item) => item.productId === product.id);
+      if (existingItem) {
+        // Sumar las cantidades si el producto viene de múltiples marcas
+        existingItem.requested = roundStock(existingItem.requested + requestedQuantity);
+        existingItem.pending = roundStock(existingItem.pending + requestedQuantity);
+      } else {
+        targetOrder.items.push({
+          productId: product.id,
+          productName: product.name,
+          unit: product.unit,
+          requested: requestedQuantity,
+          delivered: 0,
+          pending: requestedQuantity,
+          workedInKitchen: false,
+          workedAt: "",
+        });
+        totalProducts++;
+      }
+    });
+  });
+
+  if (targetOrder.items.length === 0) {
+    setFlash("orders", "error", "No hay productos con cantidades válidas para solicitar.");
+    return;
+  }
+
+  // Agregar el pedido a la lista
+  state.kitchenOrders.unshift(targetOrder);
+
+  // Limpiar las solicitudes de la sucursal
+  state.branchNeeds = state.branchNeeds.filter(
+    (need) => need.branchId !== branchId
+  );
+
+  // Guardar y notificar
+  saveState();
+  setFlash("orders", "success", `Pedido consolidado creado para ${branch.name} con ${targetOrder.items.length} productos.`);
+  render();
 }
 
 function getOrdersReadyForDispatch() {
@@ -9926,8 +10066,7 @@ function sendBranchOrderToKitchenOrders(branchId, brandName, productId) {
       (order) =>
         order.status === "pendiente" &&
         order.forwardedToDispatch !== true &&
-        order.branchId === branch.id &&
-        normalizeBranchBrand(order.brandName) === normalizedBrandName,
+        order.branchId === branch.id,
     ) || null;
 
   if (!targetOrder) {
@@ -9936,7 +10075,7 @@ function sendBranchOrderToKitchenOrders(branchId, brandName, productId) {
       number: createKitchenOrderNumber(),
       branchId: branch.id,
       branchName: branch.name,
-      brandName: normalizedBrandName,
+      brandName: "Consolidado", // Cambiado para indicar que es un pedido consolidado
       requesterId: requester.id,
       requesterName: requester.name,
       requesterRole: requester.role,
@@ -9944,7 +10083,7 @@ function sendBranchOrderToKitchenOrders(branchId, brandName, productId) {
       authorizedByName: requester.name,
       authorizedByRole: normalizeCollaboratorRole(requester.role),
       origin: "Pedidos",
-      destination: `${branch.name} / ${normalizedBrandName}`,
+      destination: `${branch.name} / Consolidado`,
       status: "pendiente",
       date: today(),
       createdAt,
