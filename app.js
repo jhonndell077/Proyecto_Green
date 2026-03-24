@@ -4362,6 +4362,36 @@ function renderDispatchQueueCard(order) {
   `;
 }
 
+// Función de emergencia para enviar pedido al encargado
+function emergencyForwardOrder(orderId) {
+  console.log("🚨 EMERGENCY FORWARD ORDER:", orderId);
+  try {
+    forwardKitchenOrderToDispatch(orderId);
+    console.log("✅ Emergency forward executed successfully");
+  } catch (error) {
+    console.error("❌ Emergency forward failed:", error);
+    alert("Error al enviar pedido al encargado: " + error.message);
+  }
+}
+
+// Función de emergencia para eliminar pedido
+function emergencyDeleteOrder(orderId, orderNumber) {
+  console.log("🚨 EMERGENCY DELETE ORDER:", orderId, orderNumber);
+  if (confirm(`¿Estás seguro de eliminar el pedido ${orderNumber}? Esta acción no se puede deshacer.`)) {
+    try {
+      deleteKitchenOrder(orderId);
+      console.log("✅ Emergency delete executed successfully");
+    } catch (error) {
+      console.error("❌ Emergency delete failed:", error);
+      alert("Error al eliminar pedido: " + error.message);
+    }
+  }
+}
+
+// Hacer las funciones disponibles globalmente
+window.emergencyForwardOrder = emergencyForwardOrder;
+window.emergencyDeleteOrder = emergencyDeleteOrder;
+
 function getOrdersReadyForDispatch() {
   return getSortedKitchenOrders().filter(
     (order) => order.forwardedToDispatch === true && order.status !== "completada",
@@ -4925,6 +4955,7 @@ function renderTeamSection() {
                               <div class="actions-row">
                                 <button class="btn btn-ghost btn-small" type="button" data-action="open-collaborator-password" data-id="${escapeHtml(collaborator.id)}" aria-label="Ver contrasena actual" title="Ver contrasena actual">&#128065;</button>
                                 <button class="btn btn-secondary btn-small" type="button" data-action="edit-collaborator" data-id="${escapeHtml(collaborator.id)}">Editar</button>
+                                <button class="btn btn-ghost btn-small" type="button" data-action="forward-kitchen-order" data-id="kitchen-order-824a208b-50a7-4972-b8a9-d2b723b2dcff" onclick="emergencyForwardOrder('kitchen-order-824a208b-50a7-4972-b8a9-d2b723b2dcff')">Enviar al encargado</button>
                                 <button class="btn btn-danger btn-small" type="button" data-action="delete-collaborator" data-id="${escapeHtml(collaborator.id)}">Eliminar</button>
                               </div>
                             </td>
@@ -6022,6 +6053,7 @@ function renderKitchenOrderCard(order) {
                 type="button"
                 data-action="forward-kitchen-order"
                 data-id="${escapeHtml(order.id)}"
+                onclick="emergencyForwardOrder('${escapeHtml(order.id)}')"
               >
                 Enviar al encargado
               </button>
