@@ -3719,154 +3719,43 @@ window.emergencyDeleteOrder = function(orderId, orderNumber) {
       
     } catch (error) {
       console.error('Error deleting order:', error);
-      alert('Error al eliminar el pedido: ' + error.message);
+      alert("Error al eliminar pedido: " + error.message);
     }
   }
 };
 
-// Función de limpieza masiva para los pedidos específicos
+// Función de limpieza masiva para eliminar pedidos específicos
 window.cleanSpecificOrders = function() {
   console.log("Cleaning specific orders...");
   
-  const ordersToClean = [
-    "kitchen-order-565b96a8-5905-43ad-b331-081db38c1b4d", // REQ-2603231011-893
-    "kitchen-order-ec938096-ca63-4324-8695-de044acd26d5"  // REQ-2603231011-434
-  ];
-  
+  const targetOrderNumbers = ["REQ-2603231011-893", "REQ-2603231011-434"];
   let cleanedCount = 0;
   
-  ordersToClean.forEach(orderId => {
-    const orderIndex = state.kitchenOrders.findIndex(o => o.id === orderId);
+  // Recorrer todos los pedidos y eliminar los específicos
+  for (let i = state.kitchenOrders.length - 1; i >= 0; i--) {
+    const order = state.kitchenOrders[i];
     
-    if (orderIndex !== -1) {
-      const order = state.kitchenOrders[orderIndex];
+    if (targetOrderNumbers.includes(order.number)) {
+      console.log("Deleting specific order:", order.number);
       
-      // Cambiar estado a completado
-      order.status = "completada";
-      order.completedAt = new Date().toISOString();
-      order.completedBy = getAuthenticatedCollaborator()?.name || "Sistema";
-      
-      state.kitchenOrders[orderIndex] = order;
+      // Eliminar completamente del array
+      state.kitchenOrders.splice(i, 1);
       cleanedCount++;
-      
-      console.log("Order cleaned:", order.number);
     }
-  });
+  }
   
   if (cleanedCount > 0) {
     reconcileNotificationsWithInventory();
     saveState();
     
-    alert(`Se movieron ${cleanedCount} pedidos al historial correctamente`);
+    alert(`Se eliminaron ${cleanedCount} pedidos específicos correctamente`);
     
     setTimeout(() => {
       render();
     }, 100);
   } else {
+    alert("No se encontraron los pedidos para eliminar");
     alert("No se encontraron los pedidos para limpiar");
-  }
-};
-
-// Función para eliminar TODOS los pedidos activos
-window.clearAllActiveOrders = function() {
-  console.log("Moving ALL active orders to history...");
-  
-  if (!confirm("¿Estás seguro de mover TODOS los pedidos activos al historial?")) {
-    return;
-  }
-  
-  let movedCount = 0;
-  
-  // Recorrer todos los pedidos y moverlos al historial
-  for (let i = state.kitchenOrders.length - 1; i >= 0; i--) {
-    const order = state.kitchenOrders[i];
-    
-    if (order.status !== "completada") {
-      console.log("Moving order to history:", order.number);
-      
-      // Mover al historial separado
-      moveToHistory(order);
-      
-      // Eliminar del array de activos
-      state.kitchenOrders.splice(i, 1);
-      movedCount++;
-    }
-  }
-  
-  if (movedCount > 0) {
-    reconcileNotificationsWithInventory();
-    saveState();
-    
-    alert(`Se movieron ${movedCount} pedidos al historial correctamente`);
-    
-    // Forzar recarga completa
-    setTimeout(() => {
-      location.reload();
-    }, 500);
-    
-  } else {
-    alert("No hay pedidos activos para mover");
-  }
-};
-
-// Función para mover un pedido al historial separado
-function moveToHistory(order) {
-  console.log("Moving order to history:", order.number);
-  
-  // Crear copia del pedido para el historial
-  const historyOrder = {
-    ...order,
-    status: "completed",
-    completedAt: new Date().toISOString(),
-    completedBy: getAuthenticatedCollaborator()?.name || "Sistema",
-    movedToHistoryAt: new Date().toISOString(),
-  };
-  
-  // Añadir al historial separado
-  historyState.completedOrders.push(historyOrder);
-  
-  // Guardar historial
-  saveHistoryState();
-  
-  console.log("Order moved to history successfully");
-}
-
-// Función para eliminar pedidos activos (no mover a historial)
-window.deleteActiveOrders = function() {
-  console.log("Deleting active orders (not moving to history)...");
-  
-  if (!confirm("¿Estás seguro de eliminar los pedidos activos? Se eliminarán completamente del sistema.")) {
-    return;
-  }
-  
-  let deletedCount = 0;
-  
-  // Eliminar completamente los pedidos activos (no mover a historial)
-  for (let i = state.kitchenOrders.length - 1; i >= 0; i--) {
-    const order = state.kitchenOrders[i];
-    
-    if (order.status !== "completada") {
-      console.log("Deleting active order:", order.number);
-      
-      // Eliminar completamente del array
-      state.kitchenOrders.splice(i, 1);
-      deletedCount++;
-    }
-  }
-  
-  if (deletedCount > 0) {
-    reconcileNotificationsWithInventory();
-    saveState();
-    
-    alert(`Se eliminaron ${deletedCount} pedidos activos correctamente`);
-    
-    // Forzar recarga completa
-    setTimeout(() => {
-      location.reload();
-    }, 500);
-    
-  } else {
-    alert("No hay pedidos activos para eliminar");
   }
 };
 
