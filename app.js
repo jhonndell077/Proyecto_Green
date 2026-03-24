@@ -6433,19 +6433,13 @@ function renderNotificationsList(allowTaskActions = false) {
 
 function renderControlSection() {
   const productMetrics = getProductConsumptionMetrics();
-  const collaboratorMetrics = getCollaboratorSpeedMetrics();
   const branchConsumptionMetrics = getBranchConsumptionMetrics();
   const topProduct = productMetrics[0] || null;
-  const fastestCollaborator = collaboratorMetrics[0] || null;
   const completedTasks = getCompletedTaskNotifications();
   const activeTimers = getSortedNotifications();
   const averageProductionMs = getAverageNotificationDurationMs(completedTasks);
   const longestPending = getLongestPendingNotification();
   const maxProductScore = Math.max(...productMetrics.map((metric) => metric.score), 1);
-  const maxCollaboratorDuration = Math.max(
-    ...collaboratorMetrics.map((metric) => metric.averageDurationMs),
-    1,
-  );
   const maxBranchConsumption = Math.max(
     ...branchConsumptionMetrics.map((metric) => metric.totalQuantity),
     1,
@@ -6461,24 +6455,6 @@ function renderControlSection() {
             topProduct
               ? `${topProduct.lowStockHits} alertas por stock bajo y ${topProduct.exitCount} salidas registradas.`
               : "Registra salidas para detectar el producto mas exigido."
-          }</p>
-        </article>
-        <article class="stat-card">
-          <h3>Tiempo promedio de produccion</h3>
-          <span class="dashboard-lead">${completedTasks.length > 0 ? escapeHtml(formatElapsedTime(averageProductionMs)) : "--"}</span>
-          <p>${
-            completedTasks.length > 0
-              ? `${completedTasks.length} tareas completadas ya alimentan este promedio.`
-              : "Aun no hay tareas completadas para medir tiempo promedio."
-          }</p>
-        </article>
-        <article class="stat-card">
-          <h3>Colaborador mas rapido</h3>
-          <span class="dashboard-lead">${fastestCollaborator ? escapeHtml(fastestCollaborator.name) : "Sin datos"}</span>
-          <p>${
-            fastestCollaborator
-              ? `Promedio ${formatElapsedTime(fastestCollaborator.averageDurationMs)} en ${fastestCollaborator.taskCount} tareas.`
-              : "Completa reposiciones para detectar quien termina primero."
           }</p>
         </article>
         <article class="stat-card">
@@ -10550,51 +10526,6 @@ function getProductConsumptionMetrics() {
 
       if (right.totalOutput !== left.totalOutput) {
         return right.totalOutput - left.totalOutput;
-      }
-
-      return left.name.localeCompare(right.name, "es");
-    });
-}
-
-function getCollaboratorSpeedMetrics() {
-  const metrics = new Map();
-
-  getCompletedTaskNotifications().forEach((notification) => {
-    const duration = getNotificationDurationMs(notification);
-    if (duration === null) {
-      return;
-    }
-
-    notification.collaboratorNames.forEach((name) => {
-      const trimmedName = String(name || "").trim();
-      if (!trimmedName) {
-        return;
-      }
-
-      const current = metrics.get(trimmedName) || {
-        name: trimmedName,
-        totalDurationMs: 0,
-        taskCount: 0,
-      };
-
-      current.totalDurationMs += duration;
-      current.taskCount += 1;
-      metrics.set(trimmedName, current);
-    });
-  });
-
-  return [...metrics.values()]
-    .map((metric) => ({
-      ...metric,
-      averageDurationMs: metric.taskCount > 0 ? metric.totalDurationMs / metric.taskCount : 0,
-    }))
-    .sort((left, right) => {
-      if (left.averageDurationMs !== right.averageDurationMs) {
-        return left.averageDurationMs - right.averageDurationMs;
-      }
-
-      if (right.taskCount !== left.taskCount) {
-        return right.taskCount - left.taskCount;
       }
 
       return left.name.localeCompare(right.name, "es");
