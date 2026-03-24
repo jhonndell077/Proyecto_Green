@@ -4128,6 +4128,9 @@ function createConsolidatedBranchOrder(branchId) {
   render();
 }
 
+// Hacer la función disponible globalmente para onclick
+window.createConsolidatedBranchOrder = createConsolidatedBranchOrder;
+
 function getOrdersReadyForDispatch() {
   return getSortedKitchenOrders().filter(
     (order) => order.forwardedToDispatch === true && order.status !== "completada",
