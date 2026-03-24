@@ -9954,7 +9954,7 @@ function syncBranchStockNotification(
 }
 
 function formatBranchProductMeta(product) {
-  return `Cuarto Frio ${formatNumber(product.stockCurrent)} ${product.unit} · Ideal tienda ${formatNumber(product.stockIdeal)} ${product.unit}`;
+  return `Stock: ${formatNumber(product.stockCurrent)} ${product.unit}`;
 }
 
 function getBranchesWithRequestedProducts() {
@@ -10335,6 +10335,15 @@ function updateBranchDailyQuantity(branchId, productId, rawValue) {
   if (hasValue) {
     setBranchStoreStockValue(branchId, productId, nextQuantity, updatedAt);
   }
+  
+  // Limpiar el input después de guardar
+  setTimeout(() => {
+    const input = document.querySelector(`input[data-branch-daily-quantity-input="true"][data-branch-id="${branchId}"][data-product-id="${productId}"]`);
+    if (input) {
+      input.value = "";
+    }
+  }, 100);
+  
   reconcileNotificationsWithInventory();
   saveState();
   render();
