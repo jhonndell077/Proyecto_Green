@@ -744,7 +744,8 @@ function sanitizeState(rawState) {
                 .filter(Boolean)
             : [];
 
-          if (!branchName || !brandName || items.length === 0) {
+          // 🔥 PERMITIR pedidos con items vacíos temporalmente (evita eliminar pedidos recién creados)
+          if (!branchName || !brandName) {
             return null;
           }
 
@@ -948,6 +949,12 @@ function scheduleCloudSyncRetry(error) {
 }
 
 function applyRemoteState(remoteState) {
+  // 🔥 Bloquear sincronización si se está creando un pedido
+  if (isCreatingOrder) {
+    console.log("🔥 Bloqueando sincronización - creando pedido");
+    return false;
+  }
+  
   const sanitizedRemoteState = sanitizeState(remoteState);
   const remoteSignature = JSON.stringify(sanitizedRemoteState);
   const currentSignature = JSON.stringify(state);
@@ -957,9 +964,32 @@ function applyRemoteState(remoteState) {
     return false;
   }
 
+  // 🔥 MERGE de kitchenOrders, no REPLACE
+  const localOrders = state.kitchenOrders || [];
+  const remoteOrders = sanitizedRemoteState.kitchenOrders || [];
+
+  console.log("🔍 STATE LOCAL ORDERS:", localOrders.length);
+  console.log("🔍 STATE REMOTE ORDERS:", remoteOrders.length);
+
+  // Mantener pedidos locales que no existen en remoto (pedidos recién creados)
+  const mergedOrders = [
+    ...localOrders.filter(local => 
+      !remoteOrders.some(remote => remote.id === local.id)
+    ),
+    ...remoteOrders
+  ];
+
+  console.log("🔍 MERGED ORDERS:", mergedOrders.length);
+
   cloudSync.applyingRemoteState = true;
   cloudSync.lastSnapshotSignature = remoteSignature;
-  state = sanitizedRemoteState;
+  
+  // Aplicar estado con kitchenOrders mergeados
+  state = {
+    ...sanitizedRemoteState,
+    kitchenOrders: mergedOrders
+  };
+  
   localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(state));
   cloudSync.applyingRemoteState = false;
   render();
@@ -4012,10 +4042,17 @@ function renderOrderPanelCard(panel) {
   `;
 }
 
+// 🔥 Flag de protección contra pérdida de datos
+let isCreatingOrder = false;
+
 // Nueva función para generar automáticamente un pedido consolidado por sucursal
 function createConsolidatedBranchOrder(branchId) {
+  // 🔥 Bloquear sincronización mientras se crea pedido
+  isCreatingOrder = true;
+  
   const branch = getBranchLocationById(branchId);
   if (!branch) {
+    isCreatingOrder = false;
     setFlash("orders", "error", "Sucursal no encontrada.");
     return;
   }
@@ -4026,6 +4063,7 @@ function createConsolidatedBranchOrder(branchId) {
   );
 
   if (branchNeeds.length === 0) {
+    isCreatingOrder = false;
     setFlash("orders", "error", `No hay productos solicitados para ${branch.name}.`);
     return;
   }
@@ -4065,11 +4103,20 @@ function createConsolidatedBranchOrder(branchId) {
   console.log("🔍 Total productos procesados:", totalProcessed);
 
   if (totalProcessed === 0) {
+    isCreatingOrder = false;
     setFlash("orders", "error", "No hay productos con cantidades válidas para solicitar.");
     return;
   }
 
-  // Limpiar las solicitudes de la sucursal DESPUÉS de procesar
+  // 🔥 Guardar inmediatamente en cloud ANTES de limpiar
+  console.log("🔍 Guardando estado local...");
+  saveState();
+  
+  // 🔥 FORZAR guardado inmediato en Firebase
+  console.log("🔍 Forzando guardado en la nube...");
+  pushStateToCloud(true);
+
+  // Limpiar las solicitudes de la sucursal DESPUÉS de guardar
   const beforeCount = state.branchNeeds.length;
   state.branchNeeds = state.branchNeeds.filter(
     (need) => need.branchId !== branchId
@@ -4077,8 +4124,12 @@ function createConsolidatedBranchOrder(branchId) {
   const afterCount = state.branchNeeds.length;
   console.log("🔍 Limpiando branchNeeds. Antes:", beforeCount, "Después:", afterCount);
 
-  // Guardar y notificar
+  // Guardar final
   saveState();
+  
+  // 🔥 Liberar flag de protección
+  isCreatingOrder = false;
+  
   setFlash("orders", "success", `Pedido consolidado creado para ${branch.name} con ${totalProcessed} productos.`);
   console.log("✅ Pedido guardado y renderizando...");
   render();
