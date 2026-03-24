@@ -3934,6 +3934,60 @@ function renderOrdersModule() {
   `;
 }
 
+function renderOrderPanelCard(panel) {
+  return `
+    <article class="module-card branch-module-card">
+      <div>
+        <p class="eyebrow">${escapeHtml(panel.branchName)}</p>
+        <h2>${escapeHtml(panel.brandName)}</h2>
+        <p>Pedido consolidado desde los checkbox marcados por esta marca.</p>
+      </div>
+      <div class="stat-strip">
+        <span class="pill">${panel.products.length} productos pedidos</span>
+        <span class="pill">${escapeHtml(panel.updatedAtLabel)}</span>
+      </div>
+      <div class="branch-checklist">
+        ${panel.products
+          .map(
+            (product) => `
+              <label class="branch-check-item">
+                <input
+                  type="checkbox"
+                  data-order-send="true"
+                  data-branch-id="${escapeHtml(panel.branchId)}"
+                  data-brand-name="${escapeHtml(panel.brandName)}"
+                  data-product-id="${escapeHtml(product.id)}"
+                />
+                <span class="branch-check-copy">
+                  <strong>${escapeHtml(product.name)}</strong>
+                  <small><strong>Enviar a Pedidos enviados:</strong> marca esta casilla para preparar el pedido operativo.</small>
+                  ${
+                    product.dailyQuantity !== null && product.dailyQuantity > 0
+                      ? `<small>Cantidad actual: ${formatNumber(product.dailyQuantity)} ${escapeHtml(product.unit)}</small>`
+                      : ""
+                  }
+                  <small>Tienda: ${
+                    product.storeStock === null
+                      ? "sin stock registrado"
+                      : `${formatNumber(product.storeStock)} ${escapeHtml(product.unit)}`
+                  }</small>
+                  <small class="${product.orderQuantity > 0 ? "stock-shortage-copy" : ""}">
+                    ${
+                      product.orderQuantity > 0
+                          ? `Se pediran ${formatNumber(product.orderQuantity)} ${escapeHtml(product.unit)} para completar.`
+                        : "Solo se enviara si realmente falta mercancia en tienda."
+                    }
+                  </small>
+                </span>
+              </label>
+            `,
+          )
+          .join("")}
+      </div>
+    </article>
+  `;
+}
+
 function getOrdersReadyForDispatch() {
   return getSortedKitchenOrders().filter(
     (order) => order.forwardedToDispatch === true && order.status !== "completada",
