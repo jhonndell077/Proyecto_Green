@@ -3874,6 +3874,10 @@ function renderOrdersModule() {
       </div>
 
       <!-- Contenido de la pestaña activa -->
+      
+      <!-- Notificaciones de nuevos pedidos desde sucursales -->
+      ${renderBranchOrderNotifications()}
+      
       ${currentTab === "activos" ? `
         <section class="panel">
           ${
@@ -4039,6 +4043,144 @@ function legacyRenderOrderPanelCard(panel) {
     </article>
   `;
 }
+
+function renderBranchOrderNotifications() {
+  const orderPanels = getOrderPanelsWithRequests();
+  
+  if (orderPanels.length === 0) {
+    return "";
+  }
+  
+  return `
+    <section class="branch-notifications-section">
+      <div class="section-heading">
+        <div>
+          <h2>🔔 Nuevos Pedidos de Sucursales</h2>
+          <p>Notificaciones de pedidos recibidos desde las sucursales que necesitan atención.</p>
+        </div>
+        <div class="notification-badge">
+          <span class="badge-count">${orderPanels.length}</span>
+          <span class="badge-label">Pendientes</span>
+        </div>
+      </div>
+      
+      <div class="branch-notifications-grid">
+        ${orderPanels
+          .slice(0, 6)
+          .map((panel) => `
+            <article class="branch-notification-card">
+              <div class="notification-header">
+                <div class="location-info">
+                  <span class="location-badge">${escapeHtml(panel.branchName)}</span>
+                  <h3 class="brand-name">${escapeHtml(panel.brandName)}</h3>
+                </div>
+                <div class="notification-time">
+                  <span class="time-icon">⏰</span>
+                  <span>${escapeHtml(panel.updatedAtLabel)}</span>
+                </div>
+              </div>
+              
+              <div class="notification-content">
+                <div class="product-summary">
+                  <span class="product-count">${panel.products.length}</span>
+                  <span class="product-label">productos solicitados</span>
+                </div>
+                
+                <div class="product-preview">
+                  ${panel.products
+                    .slice(0, 3)
+                    .map((product) => `
+                      <div class="product-chip">
+                        <span class="product-name">${escapeHtml(product.name)}</span>
+                        <span class="product-quantity">${formatNumber(product.orderQuantity || 0)} ${escapeHtml(product.unit || "")}</span>
+                      </div>
+                    `)
+                    .join("")}
+                  ${panel.products.length > 3 ? `
+                    <div class="more-products">
+                      <span>+${panel.products.length - 3} más</span>
+                    </div>
+                  ` : ""}
+                </div>
+              </div>
+              
+              <div class="notification-actions">
+                <button
+                  class="btn btn-primary btn-small"
+                  type="button"
+                  data-action="open-branch-brand"
+                  data-branch-id="${escapeHtml(panel.branchId)}"
+                  data-brand-name="${escapeHtml(panel.brandName)}"
+                >
+                  📋 Ver Pedido
+                </button>
+                <button
+                  class="btn btn-secondary btn-small"
+                  type="button"
+                  onclick="processBranchOrder('${escapeHtml(panel.branchId)}', '${escapeHtml(panel.brandName)}')"
+                >
+                  ⚡ Procesar
+                </button>
+              </div>
+            </article>
+          `)
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+// Función para procesar automáticamente un pedido de sucursal
+window.processBranchOrder = function(branchId, brandName) {
+  console.log("Processing branch order:", branchId, brandName);
+  
+  try {
+    // Encontrar el panel de pedidos
+    const orderPanels = getOrderPanelsWithRequests();
+    const targetPanel = orderPanels.find(panel => 
+      panel.branchId === branchId && panel.brandName === brandName
+    );
+    
+    if (!targetPanel) {
+      alert("No se encontró el pedido para procesar");
+      return;
+    }
+    
+    // Marcar todos los productos para enviar a pedidos
+    let processedCount = 0;
+    targetPanel.products.forEach(product => {
+      const checkbox = document.querySelector(
+        `input[data-branch-id="${branchId}"][data-brand-name="${brandName}"][data-product-id="${product.id}"]`
+      );
+      
+      if (checkbox && !checkbox.checked) {
+        checkbox.checked = true;
+        processedCount++;
+      }
+    });
+    
+    if (processedCount > 0) {
+      // Disparar el evento para procesar los productos marcados
+      const event = new Event('change');
+      document.querySelectorAll(`input[data-branch-id="${branchId}"][data-brand-name="${brandName}"]`).forEach(cb => {
+        if (cb.checked) cb.dispatchEvent(event);
+      });
+      
+      alert(`Se procesaron ${processedCount} productos del pedido de ${brandName}`);
+      
+      // Recargar para mostrar cambios
+      setTimeout(() => {
+        render();
+      }, 500);
+    } else {
+      alert("Todos los productos ya estaban procesados");
+    }
+    
+  } catch (error) {
+    console.error("Error processing branch order:", error);
+    alert("Error al procesar pedido: " + error.message);
+  }
+};
 
 function renderOrderPanelCard(panel) {
   return `
