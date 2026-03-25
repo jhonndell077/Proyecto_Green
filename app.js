@@ -7921,7 +7921,26 @@ function getDispatchActor() {
     };
   }
 
-  return getSessionOperator();
+  // 🔥 CAMBIADO: Permitir cualquier usuario de Cuarto Frío como actor de despacho
+  // Antes: solo getSessionOperator() (encargado con operador asignado)
+  // Ahora: cualquier usuario autenticado en Cuarto Frío
+  if (hasValidColdRoomAuthorization()) {
+    const collaborator = getCollaboratorById(session.coldRoomAccessCollaboratorId);
+    if (collaborator) {
+      return {
+        id: collaborator.id,
+        name: collaborator.name,
+        area: collaborator.area,
+      };
+    }
+  }
+
+  // Si no hay colaborador específico, usar datos de sesión
+  return {
+    id: session.coldRoomAccessCollaboratorId || "",
+    name: CREDENTIALS.username,
+    area: getSessionRole() || "operador",
+  };
 }
 
 function getActiveTurnLeaderByBranch(branchName) {
@@ -9239,19 +9258,21 @@ function getDispatchAccessMessage() {
   }
 
   if (getSessionRole() === "administrador") {
-    return "La cuenta administrativa puede gestionar Cuarto Frio, pero solo un Encargado autenticado puede despachar mercancia.";
+    // 🔥 CAMBIADO: Permitir administradores gestionar despacho
+    return `Despacho autorizado para ${CREDENTIALS.username} (Administrador).`;
   }
 
   if (isBootstrapMode() || !getActiveStoreManager()) {
     return "Registra un Encargado activo en Equipo para habilitar el despacho de mercancia.";
   }
 
-  const operator = getSessionOperator();
-  const operatorLabel = operator
-    ? `${operator.name} (${formatCollaboratorRole(operator.area)})`
-    : "Sin Encargado activo";
+  // 🔥 CAMBIADO: Mostrar mensaje para cualquier usuario de Cuarto Frío autorizado
+  const actor = getDispatchActor();
+  const actorLabel = actor
+    ? `${actor.name} (${formatCollaboratorRole(actor.area)})`
+    : "Usuario autorizado";
 
-  return `Despacho autorizado para ${operatorLabel}.`;
+  return `Despacho autorizado para ${actorLabel}.`;
 }
 
 function renderEmptyState(title, copy) {
