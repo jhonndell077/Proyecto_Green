@@ -4425,21 +4425,34 @@ function deleteDispatchOrder(orderId) {
 window.deleteDispatchOrder = deleteDispatchOrder;
 
 function getOrdersReadyForDispatch() {
-  return getSortedKitchenOrders().filter(
-    (order) => order.forwardedToDispatch === true && order.status !== "completada",
+  const allOrders = getSortedKitchenOrders();
+  console.log("🔍 getOrdersReadyForDispatch - Total pedidos:", allOrders.length);
+  
+  const filteredOrders = allOrders.filter(
+    (order) => {
+      const matches = order.forwardedToDispatch === true && order.status !== "completada";
+      console.log("🔍 Pedido", order.number, "forwardedToDispatch:", order.forwardedToDispatch, "status:", order.status, "matches:", matches);
+      return matches;
+    },
   );
+  
+  console.log("🔍 getOrdersReadyForDispatch - Pedidos filtrados:", filteredOrders.length);
+  return filteredOrders;
 }
 
 function renderDispatchQueueList() {
   const orders = getOrdersReadyForDispatch();
+  console.log("🔍 renderDispatchQueueList - Pedidos a renderizar:", orders.length);
 
   if (orders.length === 0) {
+    console.log("🔍 renderDispatchQueueList - Mostrando empty state");
     return renderEmptyState(
       "No hay pedidos pendientes de salida",
       "Cuando envies un pedido al encargado desde Pedidos, aparecera aqui listo para despacharse.",
     );
   }
 
+  console.log("🔍 renderDispatchQueueList - Renderizando", orders.length, "pedidos");
   return `
     <div class="notification-list">
       ${orders.map((order) => renderDispatchQueueCard(order)).join("")}
@@ -8024,10 +8037,13 @@ function deleteKitchenOrder(orderId) {
 }
 
 function forwardKitchenOrderToDispatch(orderId) {
+  console.log("🚀 forwardKitchenOrderToDispatch INICIADO para:", orderId);
+  
   // 🔥 Bloquear sincronización mientras se envía pedido
   isCreatingOrder = true;
   
   const order = getKitchenOrderById(orderId);
+  console.log("🔍 Pedido encontrado:", order ? order.number : "NO");
 
   if (!order) {
     isCreatingOrder = false;
@@ -8122,6 +8138,20 @@ function forwardKitchenOrderToDispatch(orderId) {
   // 🔥 FORZAR guardado inmediato en Firebase
   console.log("🔍 Forzando guardado en la nube...");
   pushStateToCloud(true);
+
+  // 🔥 Verificar estado final del pedido
+  console.log("🔍 ESTADO FINAL DEL PEDIDO:");
+  console.log("🔍 ID:", order.id);
+  console.log("🔍 Number:", order.number);
+  console.log("🔍 forwardedToDispatch:", order.forwardedToDispatch);
+  console.log("🔍 status:", order.status);
+  console.log("🔍 branchId:", order.branchId);
+  console.log("🔍 brandName:", order.brandName);
+  
+  // 🔥 Verificar getOrdersReadyForDispatch()
+  const readyOrders = getOrdersReadyForDispatch();
+  console.log("🔍 Pedidos listos para dispatch:", readyOrders.length);
+  console.log("🔍 IDs de pedidos listos:", readyOrders.map(o => o.id));
 
   // 🔥 Liberar flag de protección
   isCreatingOrder = false;
