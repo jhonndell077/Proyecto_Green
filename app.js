@@ -4424,6 +4424,60 @@ function deleteDispatchOrder(orderId) {
 // Hacer la función disponible globalmente
 window.deleteDispatchOrder = deleteDispatchOrder;
 
+// Función de emergencia para forzar pedido en Salida de Productos
+function emergencyForceOrderToDispatch(orderId) {
+  console.log("🚨 EMERGENCY FORCE ORDER TO DISPATCH:", orderId);
+  
+  const order = getKitchenOrderById(orderId);
+  if (!order) {
+    console.log("❌ Pedido no encontrado:", orderId);
+    alert("Pedido no encontrado");
+    return;
+  }
+  
+  console.log("🔍 Pedido encontrado:", order.number);
+  console.log("🔍 Estado actual:", {
+    forwardedToDispatch: order.forwardedToDispatch,
+    status: order.status,
+    branchName: order.branchName,
+    brandName: order.brandName
+  });
+  
+  // Forzar el estado del pedido
+  const sender = getAuthenticatedIdentity();
+  order.forwardedToDispatch = true;
+  order.forwardedAt = new Date().toISOString();
+  order.forwardedById = sender?.id || "";
+  order.forwardedByName = sender?.name || CREDENTIALS.username;
+  order.forwardedByRole = normalizeCollaboratorRole(sender?.role || "administrador");
+  order.status = "pendiente";
+  
+  console.log("🔍 Estado forzado:", {
+    forwardedToDispatch: order.forwardedToDispatch,
+    status: order.status,
+    forwardedAt: order.forwardedAt,
+    forwardedByName: order.forwardedByName
+  });
+  
+  // Guardar y sincronizar
+  reconcileNotificationsWithInventory();
+  saveState();
+  pushStateToCloud(true);
+  
+  // Verificar que aparece en la cola
+  const readyOrders = getOrdersReadyForDispatch();
+  console.log("🔍 Pedidos listos después de forzar:", readyOrders.length);
+  console.log("🔍 IDs en cola:", readyOrders.map(o => o.id));
+  
+  setFlash("dispatch-queue", "success", `Pedido ${order.number} forzado a aparecer en Salida de Productos.`);
+  render();
+  
+  console.log("✅ Emergency force completed");
+}
+
+// Hacer la función disponible globalmente
+window.emergencyForceOrderToDispatch = emergencyForceOrderToDispatch;
+
 function getOrdersReadyForDispatch() {
   const allOrders = getSortedKitchenOrders();
   console.log("🔍 getOrdersReadyForDispatch - Total pedidos:", allOrders.length);
@@ -4443,6 +4497,14 @@ function getOrdersReadyForDispatch() {
 function renderDispatchQueueList() {
   const orders = getOrdersReadyForDispatch();
   console.log("🔍 renderDispatchQueueList - Pedidos a renderizar:", orders.length);
+  console.log("🔍 renderDispatchQueueList - Detalles de pedidos:", orders.map(o => ({
+    id: o.id,
+    number: o.number,
+    forwardedToDispatch: o.forwardedToDispatch,
+    status: o.status,
+    branchName: o.branchName,
+    brandName: o.brandName
+  })));
 
   if (orders.length === 0) {
     console.log("🔍 renderDispatchQueueList - Mostrando empty state");
