@@ -7740,7 +7740,10 @@ function canDispatchProducts() {
     return true;
   }
 
-  return getSessionRole() === "encargado" && Boolean(getSessionOperator());
+  // 🔥 CAMBIADO: Permitir a cualquier usuario de Cuarto Frío ver la cola
+  // Antes: solo encargado con operador asignado
+  // Ahora: cualquier usuario con acceso a Cuarto Frío (administrador, encargado, etc.)
+  return canAccessColdRoomModule();
 }
 
 function canManageKitchenProductCatalog() {
