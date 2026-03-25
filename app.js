@@ -1341,8 +1341,11 @@ function handleClick(event) {
         console.error("❌ Error in forwardKitchenOrderToDispatch:", error);
       }
       return;
-    case "view-order":
-      viewOrderModal(String(trigger.dataset.id || ""));
+    case "delete-dispatch-order":
+      deleteDispatchOrder(String(trigger.dataset.id || ""));
+      return;
+    case "view-collaborator-storage":
+      viewCollaboratorStorage(String(trigger.dataset.id || ""));
       return;
     case "send-to-branch":
       sendOrderToBranch(String(trigger.dataset.id || ""));
@@ -4334,28 +4337,28 @@ function renderDispatchQueueCard(order) {
       </div>
       <div class="notification-actions">
         <button
-          class="btn btn-info btn-small"
-          type="button"
-          data-action="view-order"
-          data-id="${escapeHtml(order.id)}"
-        >
-          Ver pedido
-        </button>
-        <button
-          class="btn btn-primary btn-small"
+          class="btn btn-success btn-small"
           type="button"
           data-action="dispatch-kitchen-order"
           data-id="${escapeHtml(order.id)}"
         >
-          Dar salida
+          Salida automática del almacén
         </button>
         <button
           class="btn btn-secondary btn-small"
           type="button"
-          data-action="print-kitchen-order"
+          data-action="view-order"
           data-id="${escapeHtml(order.id)}"
         >
-          Imprimir pedido
+          Vista previa
+        </button>
+        <button
+          class="btn btn-danger btn-small"
+          type="button"
+          data-action="delete-dispatch-order"
+          data-id="${escapeHtml(order.id)}"
+        >
+          Eliminar pedido
         </button>
       </div>
     </article>
@@ -4391,6 +4394,35 @@ function emergencyDeleteOrder(orderId, orderNumber) {
 // Hacer las funciones disponibles globalmente
 window.emergencyForwardOrder = emergencyForwardOrder;
 window.emergencyDeleteOrder = emergencyDeleteOrder;
+
+// Función para eliminar pedido de la cola de despacho
+function deleteDispatchOrder(orderId) {
+  const order = getKitchenOrderById(orderId);
+  
+  if (!order) {
+    setFlash("dispatch-queue", "error", "No se encontró el pedido que intentabas eliminar.");
+    render();
+    return;
+  }
+
+  if (confirm(`¿Estás seguro de eliminar el pedido ${order.number} de la cola de salida? Esta acción no se puede deshacer.`)) {
+    // Eliminar el pedido de la cola (quitar forwardedToDispatch)
+    order.forwardedToDispatch = false;
+    order.forwardedAt = "";
+    order.forwardedById = "";
+    order.forwardedByName = "";
+    order.forwardedByRole = "";
+    order.status = "pendiente";
+    
+    reconcileNotificationsWithInventory();
+    saveState();
+    setFlash("dispatch-queue", "success", `Pedido ${order.number} eliminado de la cola de salida.`);
+    render();
+  }
+}
+
+// Hacer la función disponible globalmente
+window.deleteDispatchOrder = deleteDispatchOrder;
 
 function getOrdersReadyForDispatch() {
   return getSortedKitchenOrders().filter(
@@ -4955,7 +4987,7 @@ function renderTeamSection() {
                               <div class="actions-row">
                                 <button class="btn btn-ghost btn-small" type="button" data-action="open-collaborator-password" data-id="${escapeHtml(collaborator.id)}" aria-label="Ver contrasena actual" title="Ver contrasena actual">&#128065;</button>
                                 <button class="btn btn-secondary btn-small" type="button" data-action="edit-collaborator" data-id="${escapeHtml(collaborator.id)}">Editar</button>
-                                <button class="btn btn-ghost btn-small" type="button" data-action="forward-kitchen-order" data-id="kitchen-order-824a208b-50a7-4972-b8a9-d2b723b2dcff" onclick="emergencyForwardOrder('kitchen-order-824a208b-50a7-4972-b8a9-d2b723b2dcff')">Enviar al encargado</button>
+                                <button class="btn btn-primary btn-small" type="button" data-action="view-collaborator-storage" data-id="${escapeHtml(collaborator.id)}">Ver almacén</button>
                                 <button class="btn btn-danger btn-small" type="button" data-action="delete-collaborator" data-id="${escapeHtml(collaborator.id)}">Eliminar</button>
                               </div>
                             </td>
@@ -8007,14 +8039,25 @@ function forwardKitchenOrderToDispatch(orderId) {
   const branch = getBranchLocationById(order.branchId);
   const normalizedBrandName = normalizeBranchBrand(order.brandName);
 
-  if (!branch || !normalizedBrandName) {
+  console.log("🔍 Validando pedido:", order.number);
+  console.log("🔍 branchId:", order.branchId);
+  console.log("🔍 branchName:", order.branchName);
+  console.log("🔍 brandName:", order.brandName);
+  console.log("🔍 normalizedBrandName:", normalizedBrandName);
+  console.log("🔍 branch:", branch);
+
+  // Para pedidos consolidados, solo necesitamos branchId válido
+  const isConsolidatedOrder = order.brandName === "Consolidado";
+  if (!branch || (!isConsolidatedOrder && !normalizedBrandName)) {
     isCreatingOrder = false;
+    console.log("❌ Validación fallida - branch:", !!branch, "normalizedBrandName:", !!normalizedBrandName, "isConsolidated:", isConsolidatedOrder);
     setFlash("kitchen-orders", "error", "No se pudo identificar la sucursal de este pedido.");
     render();
     return;
   }
 
-  const branchNeed = getBranchNeedRecord(order.branchId, normalizedBrandName);
+  // Para pedidos consolidados, no necesitamos branchNeed específico
+  const branchNeed = isConsolidatedOrder ? null : getBranchNeedRecord(order.branchId, normalizedBrandName);
   order.items.forEach((item) => {
     const product = getProductById(item.productId);
     if (!product) {
@@ -8023,9 +8066,15 @@ function forwardKitchenOrderToDispatch(orderId) {
       return;
     }
 
-    const currentOrderQuantity = getBranchProductOrderQuantity(branchNeed, product);
-    item.requested = roundStock(item.delivered + currentOrderQuantity);
-    item.pending = currentOrderQuantity;
+    // Para pedidos consolidados, mantener las cantidades originales
+    if (isConsolidatedOrder) {
+      item.requested = roundStock(item.requested);
+      item.pending = roundStock(item.requested - item.delivered);
+    } else {
+      const currentOrderQuantity = getBranchProductOrderQuantity(branchNeed, product);
+      item.requested = roundStock(item.delivered + currentOrderQuantity);
+      item.pending = currentOrderQuantity;
+    }
   });
 
   if (isKitchenOrderFullyDispatched(order)) {
