@@ -1121,12 +1121,6 @@ function handleClick(event) {
 
   const action = trigger.dataset.action;
 
-  // Debug para todos los clicks en botones con data-action
-  console.log("🔍 Button clicked:", action, trigger.dataset.id);
-  console.log("🔍 Button element:", trigger);
-  console.log("🔍 Button classes:", trigger.className);
-  console.log("🔍 Button HTML:", trigger.outerHTML);
-
   switch (action) {
     case "logout":
       session.authenticated = false;
@@ -1325,18 +1319,11 @@ function handleClick(event) {
       printKitchenOrder(String(trigger.dataset.id || ""));
       return;
     case "delete-kitchen-order":
-      console.log("Delete kitchen order clicked:", String(trigger.dataset.id || ""));
       deleteKitchenOrder(String(trigger.dataset.id || ""));
       return;
     case "forward-kitchen-order":
-      console.log("🔍 forward-kitchen-order clicked!");
-      console.log("🔍 Order ID:", String(trigger.dataset.id || ""));
-      console.log("🔍 Trigger element:", trigger);
-      console.log("🔍 Function exists:", typeof forwardKitchenOrderToDispatch);
-      
       try {
         forwardKitchenOrderToDispatch(String(trigger.dataset.id || ""));
-        console.log("✅ forwardKitchenOrderToDispatch executed successfully");
       } catch (error) {
         console.error("❌ Error in forwardKitchenOrderToDispatch:", error);
       }
@@ -1747,7 +1734,8 @@ function clearExitDraft() {
 }
 
 function clearBranchDrafts() {
-  return;
+  // Clear branch-specific draft data
+  ui.branchDrafts = {};
 }
 
 function submitLogin(form) {
@@ -2760,6 +2748,20 @@ function updateBranchNotificationStatus(notification, nextStatus) {
   render();
 }
 
+// Batch render calls to improve performance
+let renderTimerId = null;
+
+function scheduleRender() {
+  if (renderTimerId) {
+    clearTimeout(renderTimerId);
+  }
+  
+  renderTimerId = setTimeout(() => {
+    render();
+    renderTimerId = null;
+  }, 16); // ~60fps
+}
+
 function render() {
   syncSessionWithCollaborators();
   app.innerHTML = session.authenticated ? renderShell() : renderLogin();
@@ -3712,176 +3714,6 @@ window.forceReconnectFirebase = async function() {
   }
 };
 
-// Función de emergencia global para eliminar pedidos
-window.emergencyDeleteOrder = function(orderId, orderNumber) {
-  console.log("Emergency delete called for:", orderId, orderNumber);
-  
-  if (confirm(`¿Estás seguro de eliminar el pedido ${orderNumber}? Se eliminará permanentemente del sistema.`)) {
-    try {
-      console.log("Confirmed deletion, searching for order...");
-      
-      // Buscar el pedido directamente
-      let orderIndex = -1;
-      
-      for (let i = 0; i < state.kitchenOrders.length; i++) {
-        if (state.kitchenOrders[i].id === orderId) {
-          orderIndex = i;
-          break;
-        }
-      }
-      
-      if (orderIndex === -1) {
-        console.error("Order not found:", orderId);
-        alert('No se encontró el pedido');
-        return;
-      }
-      
-      console.log("Order found at index:", orderIndex);
-      
-      // Eliminar completamente del array
-      state.kitchenOrders.splice(orderIndex, 1);
-      
-      console.log("Order deleted completely");
-      
-      // Guardar y renderizar
-      reconcileNotificationsWithInventory();
-      saveState();
-      
-      console.log("State saved, rendering...");
-      
-      alert(`Pedido ${orderNumber} eliminado completamente del sistema.`);
-      
-      // Forzar renderizado completo
-      setTimeout(() => {
-        render();
-      }, 100);
-      
-    } catch (error) {
-      console.error('Error deleting order:', error);
-      alert("Error al eliminar pedido: " + error.message);
-    }
-  }
-};
-
-// Función de limpieza masiva para eliminar pedidos específicos
-window.cleanSpecificOrders = function() {
-  console.log("Cleaning specific orders...");
-  
-  const targetOrderNumbers = ["REQ-2603231011-893", "REQ-2603231011-434"];
-  let cleanedCount = 0;
-  
-  // Recorrer todos los pedidos y eliminar los específicos
-  for (let i = state.kitchenOrders.length - 1; i >= 0; i--) {
-    const order = state.kitchenOrders[i];
-    
-    if (targetOrderNumbers.includes(order.number)) {
-      console.log("Deleting specific order:", order.number);
-      
-      // Eliminar completamente del array
-      state.kitchenOrders.splice(i, 1);
-      cleanedCount++;
-    }
-  }
-  
-  if (cleanedCount > 0) {
-    reconcileNotificationsWithInventory();
-    saveState();
-    
-    alert(`Se eliminaron ${cleanedCount} pedidos específicos correctamente`);
-    
-    setTimeout(() => {
-      render();
-    }, 100);
-  } else {
-    alert("No se encontraron los pedidos para eliminar");
-    alert("No se encontraron los pedidos para limpiar");
-  }
-};
-
-// Función para forzar eliminación del pedido problemático
-window.forceDeleteSpecificOrder = function(orderId, orderNumber) {
-  console.log("Force deleting specific order:", orderId, orderNumber);
-  
-  if (!confirm(`¿Forzar eliminación del pedido ${orderNumber}? Esto moverá todas las ocurrencias al historial.`)) {
-    return;
-  }
-  
-  try {
-    let deletedCount = 0;
-    
-    // Buscar y eliminar TODAS las ocurrencias del pedido
-    for (let i = state.kitchenOrders.length - 1; i >= 0; i--) {
-      const order = state.kitchenOrders[i];
-      
-      if (order.id === orderId && order.status !== "completada") {
-        console.log("Found order to delete:", order.number, "at index:", i);
-        
-        // Marcar como completado
-        order.status = "completada";
-        order.completedAt = new Date().toISOString();
-        order.completedBy = getAuthenticatedCollaborator()?.name || "Sistema";
-        
-        state.kitchenOrders[i] = order;
-        deletedCount++;
-      }
-    }
-    
-    if (deletedCount > 0) {
-      reconcileNotificationsWithInventory();
-      saveState();
-      
-      alert(`Se eliminaron ${deletedCount} ocurrencias del pedido ${orderNumber} correctamente`);
-      
-      // Forzar recarga completa de la página
-      setTimeout(() => {
-        location.reload();
-      }, 500);
-      
-    } else {
-      alert("No se encontraron ocurrencias activas de este pedido");
-    }
-    
-  } catch (error) {
-    console.error("Error force deleting order:", error);
-    alert("Error al forzar eliminación: " + error.message);
-  }
-};
-
-// Función para eliminar todo el historial de pedidos
-window.clearAllHistory = function() {
-  console.log("Clearing ALL history orders...");
-  
-  if (!confirm("¿Estás seguro de eliminar TODO el historial de pedidos? Esta acción eliminará permanentemente todos los pedidos completados y no se puede deshacer.")) {
-    return;
-  }
-  
-  try {
-    const deletedCount = historyState.completedOrders.length;
-    
-    if (deletedCount > 0) {
-      // Limpiar el historial separado
-      historyState.completedOrders = [];
-      
-      // Guardar historial vacío
-      saveHistoryState();
-      
-      alert(`Se eliminaron ${deletedCount} pedidos del historial correctamente`);
-      
-      // Forzar recarga completa
-      setTimeout(() => {
-        location.reload();
-      }, 500);
-      
-    } else {
-      alert("No hay pedidos en el historial para eliminar");
-    }
-    
-  } catch (error) {
-    console.error("Error clearing history:", error);
-    alert("Error al limpiar historial: " + error.message);
-  }
-};
-
 function renderOrdersModule() {
   const orderPanels = getOrderPanelsWithRequests();
   const kitchenOrders = getSortedKitchenOrders();
@@ -3906,15 +3738,6 @@ function renderOrdersModule() {
             data-tab="activos"
           >
             📋 Pedidos Activos
-          </button>
-          <!-- Botón de diagnóstico Firebase -->
-          <button 
-            class="tab-btn" 
-            style="background: var(--info); color: white; margin-left: auto;"
-            onclick="forceReconnectFirebase()"
-            title="Forzar reconexión a Firebase"
-          >
-            🔄 Reconectar
           </button>
         </div>
       </div>
