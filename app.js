@@ -6002,26 +6002,7 @@ function isKitchenOrderFullyDispatched(order) {
 }
 
 function getKitchenOrderStatusMeta(order) {
-  if (order.sentToBranch) {
-    return {
-      label: "Enviado a sucursal",
-      className: "status-active",
-      canForward: false,
-      canSendToKitchen: false,
-      helper: "Este pedido ya fue enviado a la sucursal.",
-    };
-  }
-
-  if (isKitchenOrderFullyDispatched(order)) {
-    return {
-      label: "Despachado",
-      className: "status-active",
-      canForward: false,
-      canSendToKitchen: false,
-      helper: "Este pedido ya fue despachado por completo.",
-    };
-  }
-
+  // Prioridad 1: Si ya fue enviado al encargado, no se puede enviar de nuevo
   if (order.forwardedToDispatch) {
     return {
       label: "Enviado al encargado",
@@ -6032,6 +6013,29 @@ function getKitchenOrderStatusMeta(order) {
     };
   }
 
+  // Prioridad 2: Si está completamente despachado, no se puede enviar
+  if (isKitchenOrderFullyDispatched(order)) {
+    return {
+      label: "Despachado",
+      className: "status-active",
+      canForward: false,
+      canSendToKitchen: false,
+      helper: "Este pedido ya fue despachado por completo.",
+    };
+  }
+
+  // Prioridad 3: Si fue enviado a sucursal PERO no al encargado, permitir enviar al encargado
+  if (order.sentToBranch) {
+    return {
+      label: "Enviado a sucursal",
+      className: "status-active",
+      canForward: true, // 🔥 CAMBIADO: Permitir enviar al encargado
+      canSendToKitchen: false,
+      helper: "Este pedido fue enviado a sucursal pero aún puede enviarse al encargado para salida.",
+    };
+  }
+
+  // Prioridad 4: Estado normal pendiente
   return {
     label: "Pendiente",
     className: "status-pendiente",
